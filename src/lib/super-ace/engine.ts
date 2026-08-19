@@ -11,14 +11,14 @@ export type Grid = GridCell[][]; // cols x rows
 const ALL_SYMBOLS: SymbolType[] = ['J', 'Q', 'K', 'A', 'SPADE', 'HEART', 'CLUB', 'DIAMOND', 'SCATTER'];
 
 export const SYMBOL_MULTIPLIERS: Record<SymbolType, number> = {
-  'J': 0.03,      // Almost nothing
-  'Q': 0.05,
-  'K': 0.08,
-  'A': 0.10,
-  'CLUB': 0.12,
-  'DIAMOND': 0.15,
-  'HEART': 0.18,
-  'SPADE': 0.25,  // Best symbol still only returns 25% of bet per way
+  'J': 0.05,
+  'Q': 0.08,
+  'K': 0.10,
+  'A': 0.15,
+  'CLUB': 0.20,
+  'DIAMOND': 0.25,
+  'HEART': 0.30,  // Wins 30% of bet
+  'SPADE': 0.50,  // Wins 50% of bet
   'WILD': 0,
   'SCATTER': 0,
 };
@@ -28,25 +28,25 @@ const getRandomSymbol = (isFreeSpins = false): SymbolType => {
 
   // Extremely rare bonus symbols
   if (isFreeSpins) {
-    if (rand < 0.008) return 'SCATTER';   // 0.8% scatter
-    if (rand < 0.022) return 'WILD';      // 1.4% wild
+    if (rand < 0.005) return 'SCATTER';   // 0.5% scatter
+    if (rand < 0.015) return 'WILD';      // 1.5% wild
   } else {
-    if (rand < 0.003) return 'SCATTER';   // 0.3% scatter
-    if (rand < 0.008) return 'WILD';      // 0.5% wild
+    if (rand < 0.002) return 'SCATTER';   // 0.2% scatter
+    if (rand < 0.005) return 'WILD';      // 0.5% wild
   }
 
   // ~5% for high-paying suits
-  if (rand < 0.025) return 'SPADE';
-  if (rand < 0.04) return 'HEART';
-  if (rand < 0.055) return 'CLUB';
-  if (rand < 0.07) return 'DIAMOND';
+  if (rand < 0.02) return 'SPADE';
+  if (rand < 0.035) return 'HEART';
+  if (rand < 0.05) return 'CLUB';
+  if (rand < 0.065) return 'DIAMOND';
 
   // ~93% for common face cards (overwhelmingly J)
   const faceRand = Math.random();
-  if (faceRand < 0.65) return 'J';       // 65%
-  if (faceRand < 0.88) return 'Q';       // 23%
-  if (faceRand < 0.97) return 'K';       // 9%
-  return 'A';                            // 3%
+  if (faceRand < 0.70) return 'J';       // 70%
+  if (faceRand < 0.90) return 'Q';       // 20%
+  if (faceRand < 0.98) return 'K';       // 8%
+  return 'A';                            // 2%
 };
 
 export const generateGrid = (cols = 5, rows = 4, isFreeSpins = false): Grid => {
@@ -57,8 +57,8 @@ export const generateGrid = (cols = 5, rows = 4, isFreeSpins = false): Grid => {
       col.push({
         id: `${c}-${r}-${Date.now()}-${Math.random()}`,
         type: getRandomSymbol(isFreeSpins),
-        // 1.5% chance of golden — extremely rare cascade bonus
-        isGolden: Math.random() < 0.015 && !['SCATTER', 'WILD'].includes(getRandomSymbol()),
+        // 1% chance of golden — extremely rare cascade bonus
+        isGolden: Math.random() < 0.01 && !['SCATTER', 'WILD'].includes(getRandomSymbol()),
       });
     }
     grid.push(col);
@@ -138,15 +138,16 @@ export const evaluateWins = (grid: Grid, betAmount: number): EvaluateResult => {
       }
     }
 
-    // ⚠️ RAISED minimum from 3 to 4 — requires 4-of-a-kind to even trigger a win
-    if (currentChainLength >= 4) {
+    // Back to minimum 3 chain, but payouts are terribly low
+    if (currentChainLength >= 3) {
       let ways = 1;
       for (let c = 0; c < currentChainLength; c++) {
         const countInCol = matchingPositions.filter(p => p.col === c).length;
         ways *= countInCol;
       }
 
-      const payout = betAmount * SYMBOL_MULTIPLIERS[targetSymbol] * (currentChainLength - 2) * ways;
+      // Hardcode multiplier logic: bet * multiplier * ways (removed chain length bonus)
+      const payout = betAmount * SYMBOL_MULTIPLIERS[targetSymbol] * ways;
       wins.push({
         symbol: targetSymbol,
         positions: matchingPositions,
