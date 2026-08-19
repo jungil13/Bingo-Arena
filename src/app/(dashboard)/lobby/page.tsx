@@ -10,6 +10,7 @@ import type { RoomConfig } from '@/lib/store/room';
 import { createClient } from '@/lib/supabase/client';
 import { useEffect } from 'react';
 import { useAuthStore } from '@/lib/store/auth';
+import { hasLeftGame } from '@/lib/utils';
 
 const PRESET_ROOMS: RoomConfig[] = [
   {
@@ -162,9 +163,17 @@ export default function LobbyPage() {
               <div className="p-6 relative z-10">
                 <div className="flex justify-between items-start mb-5">
                   <h3 className="font-outfit text-xl font-bold">{room.name}</h3>
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${colors.badge}`}>
-                    Waiting
-                  </span>
+                  {(() => {
+                    const hasLeft = hasLeftGame(room.id);
+                    const isInProgress = room.status === 'IN_PROGRESS' || room.status === 'STARTING';
+                    if (hasLeft) {
+                      return <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-red-500/20 text-red-300">Left Game</span>;
+                    }
+                    if (isInProgress) {
+                      return <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-300">In Progress</span>;
+                    }
+                    return <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${colors.badge}`}>Waiting</span>;
+                  })()}
                 </div>
 
                 <div className="space-y-3 mb-6">
@@ -183,7 +192,10 @@ export default function LobbyPage() {
                   />
                 </div>
 
-                <button className="w-full py-3 rounded-xl font-bold text-sm bg-primary/90 hover:bg-primary text-white flex items-center justify-center gap-2 transition-colors group-hover:shadow-[0_0_20px_rgba(176,38,255,0.4)]">
+                <button 
+                  disabled={hasLeftGame(room.id) || room.status === 'IN_PROGRESS' || room.status === 'STARTING'}
+                  className="w-full py-3 rounded-xl font-bold text-sm bg-primary/90 hover:bg-primary text-white flex items-center justify-center gap-2 transition-colors group-hover:shadow-[0_0_20px_rgba(176,38,255,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                >
                   Join Room <ArrowRight className="w-4 h-4" />
                 </button>
               </div>

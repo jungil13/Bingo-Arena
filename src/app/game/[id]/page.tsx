@@ -16,6 +16,7 @@ import { useAudio } from '@/lib/hooks/useAudio';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/lib/store/auth';
+import { markGameAsLeft, hasLeftGame } from '@/lib/utils';
 
 // ─── Mobile tab types ────────────────────────────────────────────────────────
 type MobileTab = 'card' | 'numbers' | 'players' | 'chat';
@@ -382,7 +383,8 @@ function LobbyWaitingRoom({
   onStartGame: () => void;
 }) {
   const readyCount = players.filter(p => p.isReady).length;
-  const canStart = players.length >= 1;
+  // Host does not need to be ready, but all other real players do
+  const canStart = players.length >= 1 && players.every(p => p.isHost || p.isReady);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
@@ -527,6 +529,19 @@ export default function GameRoomPage() {
   // isHost: either they're the designated host, or the room has no hostId (preset room → self-host)
   const isHost = userId && (pendingRoom?.hostId === userId || !pendingRoom?.hostId);
 
+  // Redirect if they previously abandoned this game
+  useEffect(() => {
+    if (typeof id === 'string' && hasLeftGame(id)) {
+      router.replace('/lobby');
+    }
+  }, [id, router]);
+
+  const handleLeaveGame = useCallback(() => {
+    if (typeof id === 'string') markGameAsLeft(id);
+    leaveGame();
+    router.push('/lobby');
+  }, [id, leaveGame, router]);
+
   useEffect(() => {
     if (authUserId) {
       setUserId(authUserId);
@@ -558,6 +573,7 @@ export default function GameRoomPage() {
 
     const supabase = createClient();
     const channel = supabase.channel(`room-${roomId}`);
+    presenceChannelRef.current = channel;
 
     channel.on('broadcast', { event: 'SYNC' }, ({ payload }: any) => {
       // For aiPlayers, reconstruct Sets
@@ -617,34 +633,49 @@ export default function GameRoomPage() {
       }
     });
 
-    // If host and WAITING, broadcast presence to lobby
-    let lobbyChannel: ReturnType<typeof supabase.channel> | null = null;
-    if (isHost) {
-      lobbyChannel = supabase.channel('global-lobby', {
-        config: { presence: { key: 'lobby' } },
-      });
-      lobbyChannel.subscribe(async (status: any) => {
-        if (status === 'SUBSCRIBED') {
-          await lobbyChannel?.track({ room: config });
-        }
-      });
-    }
-
     return () => {
       leaveGame();
       setBroadcaster(null);
       supabase.removeChannel(channel);
-      if (lobbyChannel) supabase.removeChannel(lobbyChannel);
     };
   }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Effect to re-track lobby presence when game status changes
+  const lobbyChannelRef = useRef<any>(null);
+  useEffect(() => {
+    if (isHost) {
+      if (!lobbyChannelRef.current) {
+        const supabase = createClient();
+        lobbyChannelRef.current = supabase.channel('global-lobby', {
+          config: { presence: { key: 'lobby' } },
+        });
+        lobbyChannelRef.current.subscribe();
+      }
+      const config = pendingRoom;
+      if (config) {
+        lobbyChannelRef.current.track({ room: { ...config, status } });
+      }
+    }
+    return () => {
+      if (lobbyChannelRef.current && status === 'COMPLETED') {
+        // Clean up when game is done
+        lobbyChannelRef.current.untrack();
+      }
+    };
+  }, [isHost, status, pendingRoom]);
 
   // Update our presence when ready state changes (for non-host)
   const presenceChannelRef = useRef<any>(null);
   useEffect(() => {
-    // We store the channel ref during initial setup; here we just retrigger a track
-    // The actual re-tracking is handled by calling channel.track again via the stored ref
-    // This is a lightweight approach: we update presence by storing the channel via a ref
-  }, [isReady]);
+    if (presenceChannelRef.current && userId) {
+      presenceChannelRef.current.track({
+        userId,
+        name: displayName || `Guest-${userId.slice(-4)}`,
+        isReady,
+        isHost: !!isHost,
+      });
+    }
+  }, [isReady, userId, displayName, isHost]);
 
   // Start music when game starts
   useEffect(() => {
@@ -795,7 +826,7 @@ export default function GameRoomPage() {
       <header className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-white/5 bg-card/60 backdrop-blur-sm z-30 shrink-0">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { leaveGame(); router.push('/lobby'); }}
+            onClick={handleLeaveGame}
             className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -1090,7 +1121,7 @@ export default function GameRoomPage() {
 
               <div className="flex flex-col gap-3 z-10 relative">
                 <button
-                  onClick={() => { leaveGame(); router.push('/lobby'); }}
+                  onClick={handleLeaveGame}
                   className="w-full py-4 rounded-2xl font-bold bg-primary text-white hover:bg-primary/90 transition-colors shadow-[0_0_20px_rgba(176,38,255,0.3)]"
                 >
                   Back to Lobby

@@ -9,6 +9,7 @@ export interface RoomConfig {
   entry: number;
   prize: number;
   hostId?: string;
+  status?: string;
 }
 
 interface RoomStore {
