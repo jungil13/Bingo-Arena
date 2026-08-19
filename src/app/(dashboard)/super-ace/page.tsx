@@ -274,175 +274,240 @@ export default function SuperAcePage() {
   if (!grid) return null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#1a0a2e]">
-      {/* Portrait card — max width 420px */}
-      <div className="w-full max-w-[420px] mx-auto flex flex-col relative">
+    <div className="min-h-screen flex items-center justify-center bg-[#1a0a2e] p-2">
+      {/* Flex row: game on left, paytable on right (stacks on mobile) */}
+      <div className="flex flex-col lg:flex-row items-start gap-3 w-full max-w-[720px] mx-auto">
 
-        {/* ── Header ── */}
-        <div
-          className="flex items-center justify-between px-3 py-2 rounded-t-2xl"
-          style={{
-            background: 'linear-gradient(180deg,#3d1a00 0%,#2c1000 100%)',
-            borderBottom: '2px solid #5a3820',
-          }}
-        >
-          <Link href="/lobby" className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition">
-            <ChevronLeft className="w-4 h-4 text-amber-300" />
-          </Link>
+        {/* ── Game Card (left / main) ── */}
+        <div className="w-full max-w-[420px] mx-auto lg:mx-0 flex flex-col relative">
 
-          <div className="text-center">
-            <h1 className="font-outfit text-lg font-black text-amber-300 tracking-widest uppercase leading-none">
-              SuperAce
-            </h1>
-            {isFreeSpinMode && (
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-[10px] font-bold text-amber-400/70 uppercase tracking-widest"
-              >
-                Free Spin {freeSpinsTotal - freeSpinsRemaining + 1} / {freeSpinsTotal}
-              </motion.p>
-            )}
-          </div>
-
+          {/* ── Header ── */}
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-black text-amber-900"
-            style={{ background: 'linear-gradient(135deg,#fde68a,#f59e0b)' }}
+            className="flex items-center justify-between px-3 py-2 rounded-t-2xl"
+            style={{
+              background: 'linear-gradient(180deg,#3d1a00 0%,#2c1000 100%)',
+              borderBottom: '2px solid #5a3820',
+            }}
           >
-            ★
-          </div>
-        </div>
+            <Link href="/lobby" className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition">
+              <ChevronLeft className="w-4 h-4 text-amber-300" />
+            </Link>
 
-        {/* ── Free Spins HUD (shown during free spin bonus) ── */}
-        <AnimatePresence>
-          {isFreeSpinMode && (
+            <div className="text-center">
+              <h1 className="font-outfit text-lg font-black text-amber-300 tracking-widest uppercase leading-none">
+                SuperAce
+              </h1>
+              {isFreeSpinMode && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-[10px] font-bold text-amber-400/70 uppercase tracking-widest"
+                >
+                  Free Spin {freeSpinsTotal - freeSpinsRemaining + 1} / {freeSpinsTotal}
+                </motion.p>
+              )}
+            </div>
+
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-black text-amber-900"
+              style={{ background: 'linear-gradient(135deg,#fde68a,#f59e0b)' }}
+            >
+              ★
+            </div>
+          </div>
+
+          {/* ── Free Spins HUD (shown during free spin bonus) ── */}
+          <AnimatePresence>
+            {isFreeSpinMode && (
+              <div className="px-2 pt-2" style={{ background: '#1a0510' }}>
+                <FreeSpinsHUD
+                  spinsRemaining={freeSpinsRemaining}
+                  totalFreeWin={freeSpinsWin}
+                  currentMultiplier={config.freeSpinMultipliers[multiplierIndex] || config.freeSpinMultipliers[config.freeSpinMultipliers.length - 1]}
+                />
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* ── Multiplier Bar ── */}
+          {!isFreeSpinMode && (
             <div className="px-2 pt-2" style={{ background: '#1a0510' }}>
-              <FreeSpinsHUD
-                spinsRemaining={freeSpinsRemaining}
-                totalFreeWin={freeSpinsWin}
-                currentMultiplier={config.freeSpinMultipliers[multiplierIndex] || config.freeSpinMultipliers[config.freeSpinMultipliers.length - 1]}
-              />
+              <MultiplierBar currentMultiplier={config.normalMultipliers[multiplierIndex] || config.normalMultipliers[config.normalMultipliers.length - 1]} multipliers={config.normalMultipliers} />
             </div>
           )}
-        </AnimatePresence>
 
-        {/* ── Multiplier Bar ── */}
-        {!isFreeSpinMode && (
-          <div className="px-2 pt-2" style={{ background: '#1a0510' }}>
-            <MultiplierBar currentMultiplier={config.normalMultipliers[multiplierIndex] || config.normalMultipliers[config.normalMultipliers.length - 1]} multipliers={config.normalMultipliers} />
-          </div>
-        )}
+          {/* ── Slot Grid ── */}
+          <div className="px-2 pb-2 relative" style={{ background: '#1a0510' }}>
+            <SlotGrid
+              grid={grid}
+              wins={currentWins}
+              isShuffling={isShuffling}
+              onReelsStopped={handleReelsStopped}
+            />
 
-        {/* ── Slot Grid ── */}
-        <div className="px-2 pb-2 relative" style={{ background: '#1a0510' }}>
-          <SlotGrid
-            grid={grid}
-            wins={currentWins}
-            isShuffling={isShuffling}
-            onReelsStopped={handleReelsStopped}
-          />
+            {/* Scatter / Free Spins intro overlay */}
+            <AnimatePresence>
+              {phase === 'scatter_intro' && pendingFreeSpins > 0 && (
+                <FreeSpinsOverlay
+                  spinsAwarded={pendingFreeSpins}
+                  scatterCount={scatterCount}
+                  onStart={handleFreeSpinStart}
+                />
+              )}
+            </AnimatePresence>
 
-          {/* Scatter / Free Spins intro overlay */}
-          <AnimatePresence>
-            {phase === 'scatter_intro' && pendingFreeSpins > 0 && (
-              <FreeSpinsOverlay
-                spinsAwarded={pendingFreeSpins}
-                scatterCount={scatterCount}
-                onStart={handleFreeSpinStart}
-              />
-            )}
-          </AnimatePresence>
+            {/* Free Spins Complete modal */}
+            <AnimatePresence>
+              {phase === 'free_spin_end' && (
+                <FreeSpinsComplete
+                  totalWin={freeSpinsWin}
+                  onContinue={() => setPhase('idle')}
+                />
+              )}
+            </AnimatePresence>
 
-          {/* Free Spins Complete modal */}
-          <AnimatePresence>
-            {phase === 'free_spin_end' && (
-              <FreeSpinsComplete
-                totalWin={freeSpinsWin}
-                onContinue={() => setPhase('idle')}
-              />
-            )}
-          </AnimatePresence>
-
-          {/* Big Win overlay */}
-          <AnimatePresence>
-            {showBigWin && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.3 }}
-                className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none rounded-2xl overflow-hidden"
-              >
-                <div
-                  className="text-center px-8 py-6 rounded-2xl"
-                  style={{
-                    background: 'rgba(0,0,0,0.85)',
-                    border: '2.5px solid #fbbf24',
-                    boxShadow: '0 0 50px rgba(251,191,36,0.6)',
-                  }}
+            {/* Big Win overlay */}
+            <AnimatePresence>
+              {showBigWin && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.3 }}
+                  className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none rounded-2xl overflow-hidden"
                 >
-                  <p className="text-xs font-bold text-amber-400/70 uppercase tracking-widest mb-1">
-                    {isFreeSpinMode ? '🎰 Free Spin Win!' : '🎰 Big Win!'}
-                  </p>
-                  <p
-                    className="font-outfit text-4xl font-black"
-                    style={{ color: '#fbbf24', textShadow: '0 0 20px rgba(251,191,36,0.8)' }}
+                  <div
+                    className="text-center px-8 py-6 rounded-2xl"
+                    style={{
+                      background: 'rgba(0,0,0,0.85)',
+                      border: '2.5px solid #fbbf24',
+                      boxShadow: '0 0 50px rgba(251,191,36,0.6)',
+                    }}
                   >
-                    +{totalWin.toLocaleString()}
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                    <p className="text-xs font-bold text-amber-400/70 uppercase tracking-widest mb-1">
+                      {isFreeSpinMode ? '🎰 Free Spin Win!' : '🎰 Big Win!'}
+                    </p>
+                    <p
+                      className="font-outfit text-4xl font-black"
+                      style={{ color: '#fbbf24', textShadow: '0 0 20px rgba(251,191,36,0.8)' }}
+                    >
+                      +{totalWin.toLocaleString()}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* ── Controls ── */}
+          <Controls
+            bet={bet}
+            setBet={setBet}
+            onSpin={handleSpin}
+            isSpinning={isSpinning}
+            totalWin={totalWin}
+            balance={balance}
+            freeSpinsRemaining={freeSpinsRemaining}
+          />
         </div>
 
-        {/* ── Controls ── */}
-        <Controls
-          bet={bet}
-          setBet={setBet}
-          onSpin={handleSpin}
-          isSpinning={isSpinning}
-          totalWin={totalWin}
-          balance={balance}
-          freeSpinsRemaining={freeSpinsRemaining}
-        />
+        {/* ── Paytable (right side on desktop, below on mobile) ── */}
+        <div className="w-full lg:w-[270px] shrink-0 space-y-2">
 
-        {/* ── Paytable ── */}
-        <div
-          className="rounded-b-2xl px-3 pb-3 pt-2"
-          style={{ background: 'linear-gradient(180deg,#0d0500 0%,#070200 100%)', borderTop: '1px solid #2a1500' }}
-        >
-          <p className="text-[9px] text-amber-400/50 uppercase tracking-widest font-bold text-center mb-2">Paytable — pts per BINGO line × bet</p>
-          <div className="grid grid-cols-4 gap-1 text-center">
-            {([
-              { sym: 'J',       icon: 'J',  color: '#3a86ff', base: 1  },
-              { sym: 'Q',       icon: 'Q',  color: '#e63946', base: 2  },
-              { sym: 'K',       icon: 'K',  color: '#7c3aed', base: 3  },
-              { sym: 'A',       icon: 'A',  color: '#b45309', base: 5  },
-              { sym: 'CLUB',    icon: '♣',  color: '#22c55e', base: 8  },
-              { sym: 'DIAMOND', icon: '♦',  color: '#ec4899', base: 10 },
-              { sym: 'HEART',   icon: '♥',  color: '#ef4444', base: 15 },
-              { sym: 'SPADE',   icon: '♠',  color: '#6366f1', base: 25 },
-            ] as const).map(({ sym, icon, color, base }) => (
-              <div
-                key={sym}
-                className="rounded-lg py-1.5 flex flex-col items-center gap-0.5"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
-              >
-                <span className="text-base font-black leading-none" style={{ color }}>{icon}</span>
-                <span className="text-[8px] text-white/40 leading-none">Row</span>
-                <span className="text-[9px] font-bold leading-none" style={{ color }}>×{base * 2}</span>
-                <span className="text-[8px] text-white/40 leading-none">Col</span>
-                <span className="text-[9px] font-bold leading-none" style={{ color }}>×{base * 3}</span>
-                <span className="text-[8px] text-white/40 leading-none">Diag</span>
-                <span className="text-[9px] font-bold leading-none" style={{ color }}>×{base * 5}</span>
+          {/* Card: How to Win */}
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-sm overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-white/[0.06]">
+              <h3 className="text-[11px] font-semibold text-white/90 tracking-wide uppercase">How to Win</h3>
+            </div>
+            <div className="px-4 py-3 space-y-2">
+              <p className="text-[10px] text-white/40 leading-relaxed">
+                Fill an entire <span className="text-white/70 font-medium">row</span>, <span className="text-white/70 font-medium">column</span>, or <span className="text-white/70 font-medium">diagonal</span> with the same symbol.
+              </p>
+              <div className="space-y-1.5">
+                {([
+                  { icon: '➡️', label: 'Row', desc: '5 symbols across', mult: '×2', bg: 'bg-emerald-500/10', text: 'text-emerald-400' },
+                  { icon: '⬇️', label: 'Column', desc: '4 symbols down', mult: '×3', bg: 'bg-blue-500/10', text: 'text-blue-400' },
+                  { icon: '↘️', label: 'Diagonal', desc: '4 symbols diagonal', mult: '×5', bg: 'bg-amber-500/10', text: 'text-amber-400' },
+                ] as const).map(({ icon, label, desc, mult, bg, text }) => (
+                  <div key={label} className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 bg-white/[0.03] border border-white/[0.04]">
+                    <span className="text-xs">{icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-semibold text-white/80">{label}</p>
+                      <p className="text-[9px] text-white/30">{desc}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${bg} ${text}`}>{mult}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-          <div className="mt-2 flex items-center justify-center gap-3 text-[8px] text-white/30">
-            <span>🃏 <span className="text-violet-400 font-bold">WILD</span> = fills any line</span>
-            <span>⭐ <span className="text-amber-400 font-bold">SCATTER ×3</span> = 10 Free Spins</span>
+
+          {/* Card: Symbol Values */}
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-sm overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-white/[0.06]">
+              <h3 className="text-[11px] font-semibold text-white/90 tracking-wide uppercase">Symbol Values</h3>
+              <p className="text-[9px] text-white/30 mt-0.5">Multiplied by your bet amount</p>
+            </div>
+            <div className="px-2 py-2">
+              {/* Table header */}
+              <div className="grid grid-cols-[28px_1fr_40px_40px_40px] gap-1 px-2 pb-1.5 mb-1 border-b border-white/[0.04]">
+                <span className="text-[8px] text-white/25 font-medium" />
+                <span className="text-[8px] text-white/25 font-medium" />
+                <span className="text-[8px] text-white/25 font-medium text-center">Row</span>
+                <span className="text-[8px] text-white/25 font-medium text-center">Col</span>
+                <span className="text-[8px] text-white/25 font-medium text-center">Diag</span>
+              </div>
+              {/* Symbol rows */}
+              {([
+                { icon: 'J',  name: 'Jack',    color: '#3a86ff', base: 1  },
+                { icon: 'Q',  name: 'Queen',   color: '#e63946', base: 2  },
+                { icon: 'K',  name: 'King',    color: '#7c3aed', base: 3  },
+                { icon: 'A',  name: 'Ace',     color: '#b45309', base: 5  },
+                { icon: '♣',  name: 'Club',    color: '#22c55e', base: 8  },
+                { icon: '♦',  name: 'Diamond', color: '#ec4899', base: 10 },
+                { icon: '♥',  name: 'Heart',   color: '#ef4444', base: 15 },
+                { icon: '♠',  name: 'Spade',   color: '#6366f1', base: 25 },
+              ] as const).map(({ icon, name, color, base }, i) => (
+                <div
+                  key={icon}
+                  className={`grid grid-cols-[28px_1fr_40px_40px_40px] gap-1 items-center px-2 py-1 rounded-md ${
+                    i % 2 === 0 ? 'bg-white/[0.02]' : ''
+                  }`}
+                >
+                  <span className="text-sm font-black text-center leading-none" style={{ color }}>{icon}</span>
+                  <span className="text-[9px] text-white/50 font-medium truncate">{name}</span>
+                  <span className="text-[10px] font-bold text-center" style={{ color }}>×{base * 2}</span>
+                  <span className="text-[10px] font-bold text-center" style={{ color }}>×{base * 3}</span>
+                  <span className="text-[10px] font-bold text-center" style={{ color }}>×{base * 5}</span>
+                </div>
+              ))}
+            </div>
           </div>
+
+          {/* Card: Special Symbols */}
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-sm overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-white/[0.06]">
+              <h3 className="text-[11px] font-semibold text-white/90 tracking-wide uppercase">Special Symbols</h3>
+            </div>
+            <div className="px-4 py-3 space-y-2">
+              <div className="flex items-start gap-3 rounded-lg px-3 py-2 bg-violet-500/[0.06] border border-violet-500/[0.12]">
+                <span className="text-lg leading-none mt-0.5">⚡</span>
+                <div>
+                  <p className="text-[10px] font-bold text-violet-400">WILD</p>
+                  <p className="text-[9px] text-white/40 leading-relaxed">Substitutes for any symbol to help complete a winning line.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 rounded-lg px-3 py-2 bg-amber-500/[0.06] border border-amber-500/[0.12]">
+                <span className="text-lg leading-none mt-0.5">⭐</span>
+                <div>
+                  <p className="text-[10px] font-bold text-amber-400">SCATTER ×3</p>
+                  <p className="text-[9px] text-white/40 leading-relaxed">Land 3 or more anywhere on the grid to trigger 10 Free Spins!</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
+
       </div>
     </div>
   );

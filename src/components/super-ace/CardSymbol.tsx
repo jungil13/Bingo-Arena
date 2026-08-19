@@ -24,6 +24,24 @@ const FACE_CONFIG: Partial<Record<SymbolType, { label: string; color: string; bg
   A: { label: 'A', color: '#b45309', bg: 'linear-gradient(135deg,#fef3c7,#fffbeb)', winGlow: 'rgba(180,83,9,0.7)' },
 };
 
+/** Base point value for each symbol — shown as a badge on the card */
+const SYMBOL_POINTS: Partial<Record<SymbolType, number>> = {
+  J: 1, Q: 2, K: 3, A: 5,
+  CLUB: 8, DIAMOND: 10, HEART: 15, SPADE: 25,
+};
+
+/** Small badge in the bottom-right of every card showing its base point value */
+function PointBadge({ pts, color }: { pts: number; color: string }) {
+  return (
+    <div
+      className="absolute bottom-0.5 right-1 text-[8px] font-black z-10 leading-none"
+      style={{ color }}
+    >
+      ×{pts}
+    </div>
+  );
+}
+
 /* ── Shine sweep keyframe (injected once) ── */
 const SHINE_STYLE = `
 @keyframes card-shine {
@@ -300,6 +318,8 @@ export function CardSymbol({ type, isGolden, isWinning }: CardSymbolProps) {
 
         {isGolden && <GoldenSparkles />}
         {isWinning && <div className="absolute inset-0 bg-yellow-300/20 rounded-xl animate-pulse pointer-events-none" />}
+        {/* Point badge */}
+        {SYMBOL_POINTS[type] !== undefined && <PointBadge pts={SYMBOL_POINTS[type]!} color={isRed ? '#e63946' : '#1a1a2e'} />}
       </motion.div>
     );
   }
@@ -371,6 +391,8 @@ export function CardSymbol({ type, isGolden, isWinning }: CardSymbolProps) {
 
         {isGolden && <GoldenSparkles />}
         {isWinning && <div className="absolute inset-0 bg-yellow-300/20 rounded-xl animate-pulse pointer-events-none" />}
+        {/* Point badge */}
+        {SYMBOL_POINTS[type] !== undefined && <PointBadge pts={SYMBOL_POINTS[type]!} color={isGolden ? '#92400e' : faceCfg.color} />}
       </motion.div>
     );
   }
