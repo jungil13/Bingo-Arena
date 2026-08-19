@@ -39,10 +39,9 @@ export function PwaPrompt() {
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
 
     // If it's iOS and not standalone, we can optionally show the prompt
-    // Wait a couple of seconds before showing to not be too aggressive
     let timeout: NodeJS.Timeout;
     if (isIOSDevice && !localStorage.getItem("pwaPromptDismissed")) {
-      timeout = setTimeout(() => setShowPrompt(true), 3000);
+      timeout = setTimeout(() => setShowPrompt(true), 1500); // reduced timeout
     }
 
     return () => {
@@ -61,7 +60,6 @@ export function PwaPrompt() {
       setDeferredPrompt(null);
     } else if (isIOS) {
       // For iOS, the prompt is informational, they have to click the button.
-      // We don't hide it immediately unless they dismiss it.
     }
   };
 
@@ -75,10 +73,10 @@ export function PwaPrompt() {
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ y: 100, opacity: 0 }}
+        initial={{ y: 150, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 100, opacity: 0 }}
-        className="fixed bottom-0 left-0 right-0 z-50 p-4 sm:p-6 pb-safe"
+        exit={{ y: 150, opacity: 0 }}
+        className="fixed bottom-4 left-4 right-4 z-[9999] sm:p-6"
       >
         <div className="max-w-md mx-auto bg-card/95 backdrop-blur-md border border-white/10 rounded-2xl p-4 shadow-2xl flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center shrink-0 overflow-hidden">

@@ -646,6 +646,27 @@ export default function GameRoomPage() {
     };
   }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Broadcast game activity to lobby
+  useEffect(() => {
+    const supabase = createClient();
+    const lobbyChannel = supabase.channel('global-lobby');
+    
+    lobbyChannel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        const myName = displayName || `Guest-${userId?.slice(-4)}`;
+        lobbyChannel.send({
+          type: 'broadcast',
+          event: 'game_activity',
+          payload: { name: myName, userId, game: 'Bingo' }
+        });
+      }
+    });
+
+    return () => {
+      supabase.removeChannel(lobbyChannel);
+    };
+  }, [userId, displayName]);
+
   // Effect to re-track lobby presence when game status changes
   const lobbyChannelRef = useRef<any>(null);
   useEffect(() => {

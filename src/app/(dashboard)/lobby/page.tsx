@@ -225,8 +225,17 @@ export default function LobbyPage() {
   const [category, setCategory] = useState<GameCategory>('All');
   const [mounted, setMounted]   = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [onlineToasts, setOnlineToasts] = useState<{ id: string; name: string }[]>([]);
+  type LobbyEvent = { id: string; name: string; type: 'online' | 'playing_super_ace' | 'playing_bingo' | 'big_win'; amount?: number };
+  const [lobbyEvents, setLobbyEvents] = useState<LobbyEvent[]>([]);
   const { user } = useAuthStore();
+
+  const addEvent = (event: Omit<LobbyEvent, 'id'>) => {
+    const id = Math.random().toString(36).slice(2);
+    setLobbyEvents(prev => [...prev, { ...event, id }]);
+    setTimeout(() => {
+      setLobbyEvents(prev => prev.filter(t => t.id !== id));
+    }, 4500);
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -240,6 +249,7 @@ export default function LobbyPage() {
     });
 
     const channel = supabase.channel('global-lobby', { config: { presence: { key: 'lobby' } } });
+    
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();
       const rooms: RoomConfig[] = [];
@@ -254,12 +264,21 @@ export default function LobbyPage() {
     channel.on('presence', { event: 'join' }, ({ newPresences }) => {
       for (const p of newPresences) {
         if (p.isLobbyUser && p.name && (!user || p.userId !== user.id)) {
-          const toastId = Math.random().toString(36).slice(2);
-          setOnlineToasts(prev => [...prev, { id: toastId, name: p.name }]);
-          setTimeout(() => {
-            setOnlineToasts(prev => prev.filter(t => t.id !== toastId));
-          }, 3500);
+          addEvent({ name: p.name, type: 'online' });
         }
+      }
+    });
+
+    // Listen for cross-client broadcasts
+    channel.on('broadcast', { event: 'game_activity' }, ({ payload }) => {
+      if (payload.name && (!user || payload.userId !== user.id)) {
+        addEvent({ name: payload.name, type: payload.game === 'Bingo' ? 'playing_bingo' : 'playing_super_ace' });
+      }
+    });
+
+    channel.on('broadcast', { event: 'big_win' }, ({ payload }) => {
+      if (payload.name && (!user || payload.userId !== user.id)) {
+        addEvent({ name: payload.name, type: 'big_win', amount: payload.amount });
       }
     });
 
@@ -314,17 +333,37 @@ export default function LobbyPage() {
       {/* Online Toasts */}
       <div className="fixed bottom-20 md:bottom-6 right-4 md:right-8 z-50 flex flex-col gap-2 pointer-events-none">
         <AnimatePresence>
-          {onlineToasts.map(toast => (
+          {lobbyEvents.map(event => (
             <motion.div
-              key={toast.id}
+              key={event.id}
               initial={{ opacity: 0, x: 50, scale: 0.9 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-purple-600 text-white px-4 py-2.5 rounded-xl shadow-lg border border-purple-500 flex items-center gap-2 pointer-events-auto"
+              className={`text-white px-4 py-2.5 rounded-xl shadow-lg border flex items-center gap-2 pointer-events-auto ${
+                event.type === 'big_win' 
+                  ? 'bg-amber-500 border-amber-400' 
+                  : event.type === 'playing_super_ace'
+                  ? 'bg-orange-600 border-orange-500'
+                  : 'bg-purple-600 border-purple-500'
+              }`}
             >
-              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-sm font-bold">{toast.name}</span>
-              <span className="text-sm text-purple-200">is online</span>
+              {event.type === 'online' && <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />}
+              {event.type === 'big_win' && <span className="text-lg">🎰</span>}
+              {event.type === 'playing_super_ace' && <span className="text-lg">🃏</span>}
+              {event.type === 'playing_bingo' && <span className="text-lg">🎯</span>}
+              
+              <span className="text-sm font-bold">{event.name}</span>
+              
+              <span className="text-sm opacity-90">
+                {event.type === 'online' && 'is online'}
+                {event.type === 'playing_super_ace' && 'is playing Super Ace'}
+                {event.type === 'playing_bingo' && 'is playing Bingo'}
+                {event.type === 'big_win' && (
+                  <span className="font-black text-white ml-1">
+                    just won ₱{event.amount?.toLocaleString()}!
+                  </span>
+                )}
+              </span>
             </motion.div>
           ))}
         </AnimatePresence>

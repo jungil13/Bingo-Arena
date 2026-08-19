@@ -26,28 +26,29 @@ export const SYMBOL_MULTIPLIERS: Record<SymbolType, number> = {
 const getRandomSymbol = (isFreeSpins = false): SymbolType => {
   const rand = Math.random();
 
-  // During free spins, boost WILD rate to 10% and SCATTER to 5%
+  // Adjusted to be tighter: 
+  // During free spins: 3% Scatter, 6% Wild
   if (isFreeSpins) {
-    if (rand < 0.05) return 'SCATTER';
-    if (rand < 0.15) return 'WILD';
-  } else {
-    // Normal: 3% Scatter, 4% Wild
     if (rand < 0.03) return 'SCATTER';
-    if (rand < 0.07) return 'WILD';
+    if (rand < 0.09) return 'WILD'; // 0.09 - 0.03 = 0.06
+  } else {
+    // Normal: 1.5% Scatter, 2.5% Wild
+    if (rand < 0.015) return 'SCATTER';
+    if (rand < 0.04) return 'WILD'; // 0.04 - 0.015 = 0.025
   }
 
-  // 24% for high-paying suits (6% each)
-  if (rand < 0.13) return 'SPADE';
-  if (rand < 0.19) return 'HEART';
-  if (rand < 0.25) return 'CLUB';
-  if (rand < 0.31) return 'DIAMOND';
+  // 16% for high-paying suits (4% each) instead of 24%
+  if (rand < 0.08) return 'SPADE';
+  if (rand < 0.12) return 'HEART';
+  if (rand < 0.16) return 'CLUB';
+  if (rand < 0.20) return 'DIAMOND';
 
-  // 69% for common face cards (weighted towards J and Q for frequent small wins)
+  // 80% for common face cards (weighted heavily towards J and Q for small wins)
   const faceRand = Math.random();
-  if (faceRand < 0.35) return 'J';      // Most common
-  if (faceRand < 0.65) return 'Q';      // Common
-  if (faceRand < 0.85) return 'K';      // Uncommon
-  return 'A';                           // Rare face
+  if (faceRand < 0.50) return 'J';      // 50%
+  if (faceRand < 0.80) return 'Q';      // 30%
+  if (faceRand < 0.95) return 'K';      // 15%
+  return 'A';                           // 5%
 };
 
 export const generateGrid = (cols = 5, rows = 4, isFreeSpins = false): Grid => {
@@ -58,7 +59,8 @@ export const generateGrid = (cols = 5, rows = 4, isFreeSpins = false): Grid => {
       col.push({
         id: `${c}-${r}-${Date.now()}-${Math.random()}`,
         type: getRandomSymbol(isFreeSpins),
-        isGolden: Math.random() < 0.15 && !['SCATTER', 'WILD'].includes(getRandomSymbol()),
+        // Reduce golden symbol frequency from 15% to 8% to reduce cascading wild potential
+        isGolden: Math.random() < 0.08 && !['SCATTER', 'WILD'].includes(getRandomSymbol()),
       });
     }
     grid.push(col);
@@ -193,7 +195,7 @@ export const cascadeGrid = (grid: Grid, wins: WinResult[], isFreeSpins = false):
       survivingCol.unshift({
         id: `${c}-new-${Date.now()}-${Math.random()}`,
         type: getRandomSymbol(isFreeSpins),
-        isGolden: Math.random() < 0.15,
+        isGolden: Math.random() < 0.08,
       });
     }
 

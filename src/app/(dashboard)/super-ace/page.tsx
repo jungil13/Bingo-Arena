@@ -17,6 +17,8 @@ import { MultiplierBar } from '@/components/super-ace/MultiplierBar';
 import { FreeSpinsOverlay, FreeSpinsHUD, FreeSpinsComplete } from '@/components/super-ace/FreeSpinsOverlay';
 import { useWalletStore } from '@/lib/store/wallet';
 import { useSlotStore } from '@/lib/store/slotStore';
+import { useAuthStore } from '@/lib/store/auth';
+import { createClient } from '@/lib/supabase/client';
 import { useAudio } from '@/lib/hooks/useAudio';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
@@ -33,6 +35,9 @@ type GamePhase =
 export default function SuperAcePage() {
   const { config } = useSlotStore();
   const { balance, deductFunds, addFunds } = useWalletStore();
+  const { user } = useAuthStore();
+  const channelRef = useRef<any>(null);
+
   const [bet, setBet] = useState(10);
   const [grid, setGrid] = useState<Grid | null>(null);
   const [phase, setPhase] = useState<GamePhase>('idle');
@@ -73,8 +78,27 @@ export default function SuperAcePage() {
   useEffect(() => {
     setGrid(generateGrid());
     startMusic();
-    return () => stopMusic();
-  }, [startMusic, stopMusic]);
+
+    const supabase = createClient();
+    const channel = supabase.channel('global-lobby');
+    channelRef.current = channel;
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        const myName = user?.username || `Guest-${Math.random().toString(36).slice(2, 6)}`;
+        channel.send({
+          type: 'broadcast',
+          event: 'game_activity',
+          payload: { name: myName, userId: user?.id, game: 'Super Ace' }
+        });
+      }
+    });
+
+    return () => {
+      stopMusic();
+      supabase.removeChannel(channel);
+    };
+  }, [startMusic, stopMusic, user]);
 
   /* ── Core spin logic ── */
   const runSpin = useCallback(async (isFreeSpinRound = false) => {
@@ -168,6 +192,16 @@ export default function SuperAcePage() {
         if (currentTotal > bet * 5) {
           playBingo();
           setShowBigWin(true);
+          
+          if (channelRef.current) {
+            const myName = user?.username || `Guest-${Math.random().toString(36).slice(2, 6)}`;
+            channelRef.current.send({
+              type: 'broadcast',
+              event: 'big_win',
+              payload: { name: myName, userId: user?.id, amount: currentTotal, game: 'Super Ace' }
+            });
+          }
+
           setTimeout(() => setShowBigWin(false), 2800);
         } else {
           playMark();
