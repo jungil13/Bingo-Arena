@@ -19,7 +19,9 @@ export function useAudio(enabled: boolean) {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      ctxRef.current?.close();
+      if (ctxRef.current && ctxRef.current.state !== 'closed') {
+        ctxRef.current.close().catch(() => {});
+      }
     };
   }, []);
 

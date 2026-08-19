@@ -69,7 +69,7 @@ function CreateRoomModal({ onClose, onCreate }: {
   const [entry, setEntry]       = useState(100);
   const [aiCount, setAiCount]   = useState(5);
 
-  const prize = entry * maxPlayers * 0.8;
+  const prize = entry;  // Prize = Entry fee (1:1)
 
   const handleCreate = () => {
     if (!name.trim()) return;
@@ -172,18 +172,27 @@ function CreateRoomModal({ onClose, onCreate }: {
             <label className="block text-xs font-semibold text-gray-500 mb-1.5">
               Entry Fee (pts)
             </label>
-            <div className="flex gap-2 flex-wrap">
-              {[50, 100, 500, 1000, 2000].map(v => (
-                <button key={v} onClick={() => setEntry(v)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    entry === v
-                      ? 'bg-purple-600 text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-500 hover:bg-purple-50 hover:text-purple-600'
-                  }`}
-                >
-                  {v.toLocaleString()}
-                </button>
-              ))}
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {[50, 100, 500, 1000, 2000].map(v => (
+                  <button key={v} onClick={() => setEntry(v)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      entry === v
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-500 hover:bg-purple-50 hover:text-purple-600'
+                    }`}
+                  >
+                    {v.toLocaleString()}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                value={entry || ''}
+                onChange={e => setEntry(Math.max(0, parseInt(e.target.value) || 0))}
+                placeholder="Or type custom amount..."
+                className="w-full bg-gray-50 border border-gray-200 focus:border-purple-400 rounded-xl px-4 py-2 text-sm text-gray-800 focus:outline-none transition-colors"
+              />
             </div>
           </div>
 
@@ -191,7 +200,7 @@ function CreateRoomModal({ onClose, onCreate }: {
           <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Star className="w-4 h-4 text-purple-500" />
-              <span className="text-sm font-semibold text-purple-700">Estimated Prize Pool</span>
+              <span className="text-sm font-semibold text-purple-700">Your Prize if you Win</span>
             </div>
             <span className="font-bold text-purple-700">{prize.toLocaleString()} pts</span>
           </div>

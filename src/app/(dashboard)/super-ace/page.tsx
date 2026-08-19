@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   generateGrid,
   generateDudGrid,
+  generateScatterGrid,
   evaluateWins,
   cascadeGrid,
   Grid,
@@ -132,13 +133,23 @@ export default function SuperAcePage() {
     // Play shuffle sounds during spin
     const shuffleInterval = setInterval(() => playShuffleBeep(), 80);
 
-    // 80% chance of a dud spin where nothing happens (no wilds, no wins)
-    const isDudSpin = Math.random() < 0.8;
-
-    // Generate the final grid while reels "spin"
-    const finalGrid = isDudSpin && !isFreeSpinRound
-      ? generateDudGrid(5, 4)
-      : generateGrid(5, 4, isFreeSpinRound);
+    // ── Spin outcome probabilities ────────────────────────────────────
+    // 40% dud  (no win, no scatter)
+    // 20% scatter trigger (guaranteed 3 scatters → free spins)
+    // 40% normal spin (wilds boosted to ~15% per cell to help complete BINGO lines)
+    let finalGrid;
+    if (!isFreeSpinRound) {
+      const roll = Math.random();
+      if (roll < 0.40) {
+        finalGrid = generateDudGrid(5, 4);              // 40% → dud
+      } else if (roll < 0.60) {
+        finalGrid = generateScatterGrid(5, 4);          // 20% → scatter trigger
+      } else {
+        finalGrid = generateGrid(5, 4, false, true);    // 40% → normal spin WITH wild boost
+      }
+    } else {
+      finalGrid = generateGrid(5, 4, true, false);      // free spin round — normal grid, no wild boost
+    }
     setGrid(finalGrid);
 
     // Wait for all 5 reels to stop (SlotGrid fires onReelsStopped)
@@ -394,6 +405,44 @@ export default function SuperAcePage() {
           balance={balance}
           freeSpinsRemaining={freeSpinsRemaining}
         />
+
+        {/* ── Paytable ── */}
+        <div
+          className="rounded-b-2xl px-3 pb-3 pt-2"
+          style={{ background: 'linear-gradient(180deg,#0d0500 0%,#070200 100%)', borderTop: '1px solid #2a1500' }}
+        >
+          <p className="text-[9px] text-amber-400/50 uppercase tracking-widest font-bold text-center mb-2">Paytable — pts per BINGO line × bet</p>
+          <div className="grid grid-cols-4 gap-1 text-center">
+            {([
+              { sym: 'J',       icon: 'J',  color: '#3a86ff', base: 1  },
+              { sym: 'Q',       icon: 'Q',  color: '#e63946', base: 2  },
+              { sym: 'K',       icon: 'K',  color: '#7c3aed', base: 3  },
+              { sym: 'A',       icon: 'A',  color: '#b45309', base: 5  },
+              { sym: 'CLUB',    icon: '♣',  color: '#22c55e', base: 8  },
+              { sym: 'DIAMOND', icon: '♦',  color: '#ec4899', base: 10 },
+              { sym: 'HEART',   icon: '♥',  color: '#ef4444', base: 15 },
+              { sym: 'SPADE',   icon: '♠',  color: '#6366f1', base: 25 },
+            ] as const).map(({ sym, icon, color, base }) => (
+              <div
+                key={sym}
+                className="rounded-lg py-1.5 flex flex-col items-center gap-0.5"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
+              >
+                <span className="text-base font-black leading-none" style={{ color }}>{icon}</span>
+                <span className="text-[8px] text-white/40 leading-none">Row</span>
+                <span className="text-[9px] font-bold leading-none" style={{ color }}>×{base * 2}</span>
+                <span className="text-[8px] text-white/40 leading-none">Col</span>
+                <span className="text-[9px] font-bold leading-none" style={{ color }}>×{base * 3}</span>
+                <span className="text-[8px] text-white/40 leading-none">Diag</span>
+                <span className="text-[9px] font-bold leading-none" style={{ color }}>×{base * 5}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 flex items-center justify-center gap-3 text-[8px] text-white/30">
+            <span>🃏 <span className="text-violet-400 font-bold">WILD</span> = fills any line</span>
+            <span>⭐ <span className="text-amber-400 font-bold">SCATTER ×3</span> = 10 Free Spins</span>
+          </div>
+        </div>
       </div>
     </div>
   );
