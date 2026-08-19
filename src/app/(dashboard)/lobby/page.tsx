@@ -285,7 +285,7 @@ export default function LobbyPage() {
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         const myName = user?.username || `Guest-${Math.random().toString(36).slice(2, 6)}`;
-        await channel.track({ isLobbyUser: true, name: myName, userId: user?.id });
+        await channel.track({ isLobbyUser: true, name: myName, userId: user?.id, activity: 'Lobby' });
       }
     });
     

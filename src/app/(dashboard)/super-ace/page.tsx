@@ -80,16 +80,22 @@ export default function SuperAcePage() {
     startMusic();
 
     const supabase = createClient();
-    const channel = supabase.channel('global-lobby');
+    const channel = supabase.channel('global-lobby', { config: { presence: { key: 'lobby' } } });
     channelRef.current = channel;
 
-    channel.subscribe((status) => {
+    channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         const myName = user?.username || `Guest-${Math.random().toString(36).slice(2, 6)}`;
         channel.send({
           type: 'broadcast',
           event: 'game_activity',
           payload: { name: myName, userId: user?.id, game: 'Super Ace' }
+        });
+        await channel.track({
+          isLobbyUser: true,
+          name: myName,
+          userId: user?.id || 'guest',
+          activity: 'Super Ace',
         });
       }
     });

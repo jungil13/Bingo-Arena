@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Lock, CheckCircle, AlertCircle, Eye, EyeOff,
   Pencil, Save, X, Shield, Coins, Trophy, LayoutGrid,
-  Mail, Fingerprint, BadgeCheck
+  Mail, Fingerprint, BadgeCheck, LogOut
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/auth';
 import { useWalletStore } from '@/lib/store/wallet';
@@ -103,7 +104,8 @@ function PasswordStrength({ password }: { password: string }) {
 }
 
 export default function ProfilePage() {
-  const { user, updateUsername, updatePassword } = useAuthStore();
+  const router = useRouter();
+  const { user, updateUsername, updatePassword, logout } = useAuthStore();
   const { balance } = useWalletStore();
 
   const [nicknameEdit, setNicknameEdit] = useState(false);
@@ -194,6 +196,17 @@ export default function ProfilePage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Logout button */}
+      <motion.button 
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        onClick={() => { logout(); router.push('/'); }}
+        className="w-full py-3 rounded-2xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+      >
+        <LogOut className="w-4.5 h-4.5" />
+        Log Out
+      </motion.button>
 
       {/* Change Nickname */}
       <SectionCard title="Change Nickname" icon={<User className="w-4 h-4" />}>

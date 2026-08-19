@@ -225,7 +225,12 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+    <Suspense fallback={
+      <div className="min-h-screen flex flex-col items-center justify-center gap-2 bg-[#0d0b12] text-white">
+        <div className="text-lg font-medium">Loading...</div>
+        <div className="text-xs text-purple-400 opacity-60">developed by Jun Gil Casquejo</div>
+      </div>
+    }>
       <LoginContent />
     </Suspense>
   );

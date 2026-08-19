@@ -127,6 +127,9 @@ export default function LandingPage() {
         <p className="mt-2 text-xs opacity-60">
           This is a play-money prototype only. No real money gambling.
         </p>
+        <p className="mt-3 text-xs text-primary/80">
+          developed by Jun Gil Casquejo
+        </p>
       </footer>
     </div>
   );
