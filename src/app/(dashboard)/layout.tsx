@@ -41,33 +41,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="h-screen flex overflow-hidden" style={{ background: '#f3f0ff' }}>
 
       {/* ── Left Sidebar ── */}
-      <aside className="hidden md:flex flex-col w-52 bg-white border-r border-purple-100 sticky top-0 h-screen shadow-sm z-30">
+      <aside className="hidden md:flex flex-col w-64 bg-zinc-50/50 border-r border-zinc-200 sticky top-0 h-screen z-30">
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-purple-50">
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Bingo Arena" className="w-9 h-9 rounded-xl object-cover shadow" />
-            <span className="font-outfit font-black text-gray-800 text-base tracking-tight">BINGO ARENA</span>
-          </div>
+        <div className="flex h-14 items-center border-b border-zinc-200 px-6">
+          <Link href="/lobby" className="flex items-center gap-2 font-semibold">
+            <img src="/logo.png" alt="Bingo Arena" className="w-6 h-6 rounded-md object-cover shadow-sm" />
+            <span className="font-outfit tracking-tight text-zinc-900">Bingo Arena</span>
+          </Link>
         </div>
 
-        {/* User card */}
-        <div className="px-4 py-3 border-b border-purple-50">
-          <div className="bg-purple-50 rounded-xl p-3 flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-violet-700 flex items-center justify-center text-white font-black text-sm shadow overflow-hidden">
+        {/* User Profile */}
+        <div className="px-4 py-4">
+          <div className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white p-3 shadow-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 border border-zinc-200 overflow-hidden">
               {user?.avatar_url
                 ? <img src={user.avatar_url} alt={user.username} className="w-full h-full object-cover" />
-                : <span>{user?.username?.charAt(0).toUpperCase() || 'U'}</span>
+                : <span className="text-sm font-medium text-zinc-600">{user?.username?.charAt(0).toUpperCase() || 'U'}</span>
               }
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-gray-800 text-xs truncate">{user?.username}</p>
-              <p className="text-[10px] text-purple-600 font-semibold">⭐ {balance.toLocaleString()} pts</p>
+            <div className="flex-1 overflow-hidden">
+              <p className="truncate text-sm font-medium text-zinc-900">{user?.username}</p>
+              <p className="truncate text-xs text-zinc-500">{balance.toLocaleString()} pts</p>
             </div>
           </div>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href || (item.href === '/lobby' && pathname === '/lobby');
             const Icon = item.icon;
@@ -75,30 +75,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.name}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-semibold group ${
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'text-gray-500 hover:bg-purple-50 hover:text-purple-700'
+                    ? 'bg-zinc-100 text-zinc-900'
+                    : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'
                 }`}
               >
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                <span>{item.name}</span>
-                {isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-70" />}
+                <Icon className={`w-4 h-4 ${isActive ? 'text-zinc-900' : 'text-zinc-400'}`} />
+                {item.name}
               </Link>
             );
           })}
         </nav>
 
         {/* Footer */}
-        <div className="px-3 py-4 border-t border-purple-50 space-y-2">
+        <div className="border-t border-zinc-200 p-4">
           <button
             onClick={() => { logout(); router.push('/'); }}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-500 hover:bg-red-50 transition-colors w-full text-sm font-semibold"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
           >
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
+            <LogOut className="w-4 h-4 text-zinc-400" />
+            Logout
           </button>
-          <div className="text-[10px] text-center text-gray-400 opacity-80 pt-2 border-t border-purple-50/50">
+          <div className="mt-4 px-3 text-xs text-zinc-400">
             developed by Jun Gil Casquejo
           </div>
         </div>
