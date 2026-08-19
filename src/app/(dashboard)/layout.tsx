@@ -3,17 +3,17 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, Wallet, History, User, LogOut, Gamepad2, Bell, ChevronRight, Users } from 'lucide-react';
+import { Home, Wallet, History, User, LogOut, Gamepad2, Bell, ChevronRight, Users, MessageCircle } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/auth';
 import { useWalletStore } from '@/lib/store/wallet';
 import { motion } from 'framer-motion';
 
 const NAV_ITEMS = [
   { name: 'Home', href: '/lobby', icon: Home },
-  { name: 'Wallet', href: '/wallet', icon: Wallet },
-  { name: 'History', href: '/history', icon: History },
-  { name: 'Account', href: '/profile', icon: User },
+  { name: 'Chat', href: '/chat', icon: MessageCircle },
   { name: 'Online', href: '/online-players', icon: Users },
+  { name: 'Wallet', href: '/wallet', icon: Wallet },
+  { name: 'Account', href: '/profile', icon: User },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -35,6 +35,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!mounted || !isAuthenticated) return null;
 
   const isGame = pathname === '/super-ace';
+  const isChat = pathname === '/chat';
 
   return (
     <div className="min-h-screen flex" style={{ background: '#f3f0ff' }}>
@@ -107,7 +108,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* Top bar */}
-        {!isGame && (
+        {!isGame && !isChat && (
           <header className="bg-white border-b border-purple-100 sticky top-0 z-20 shadow-sm">
             <div className="flex items-center justify-between px-4 md:px-6 h-14">
               {/* Mobile logo */}
@@ -144,9 +145,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
 
         {/* Page content */}
-        <main className={`flex-1 ${isGame ? '' : 'overflow-y-auto pb-24'}`}>
+        <main className={`flex-1 min-h-0 ${isGame || isChat ? 'overflow-hidden flex flex-col' : 'overflow-y-auto pb-24'}`}>
           {children}
-          {!isGame && (
+          {!isGame && !isChat && (
             <footer className="md:hidden py-6 text-center text-[10px] text-gray-400 border-t border-purple-100/50 mt-8">
               developed by Jun Gil Casquejo
             </footer>
