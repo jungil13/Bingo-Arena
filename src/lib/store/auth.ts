@@ -94,11 +94,12 @@ export const useAuthStore = create<AuthState>()(
           });
         } else {
           // Profile doesn't exist yet — upsert it (happens on first Google login)
-          const username =
+          const baseName =
             sbUser.user_metadata?.full_name?.replace(/\s+/g, '') ||
             sbUser.user_metadata?.name?.replace(/\s+/g, '') ||
             sbUser.email?.split('@')[0] ||
             'Player';
+          const username = `${baseName}_${Math.random().toString(36).slice(2, 6)}`;
 
           await supabase.from('profiles').upsert({
             id: sbUser.id,

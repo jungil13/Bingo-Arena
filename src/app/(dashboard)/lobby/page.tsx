@@ -228,6 +228,7 @@ export default function LobbyPage() {
   type LobbyEvent = { id: string; name: string; type: 'online' | 'playing_super_ace' | 'playing_bingo' | 'big_win'; amount?: number };
   const [lobbyEvents, setLobbyEvents] = useState<LobbyEvent[]>([]);
   const { user } = useAuthStore();
+  const [guestId] = useState(() => `guest-${Math.random().toString(36).slice(2, 10)}`);
 
   const addEvent = (event: Omit<LobbyEvent, 'id'>) => {
     const id = Math.random().toString(36).slice(2);
@@ -285,7 +286,7 @@ export default function LobbyPage() {
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         const myName = user?.username || `Guest-${Math.random().toString(36).slice(2, 6)}`;
-        await channel.track({ isLobbyUser: true, name: myName, userId: user?.id, activity: 'Lobby' });
+        await channel.track({ isLobbyUser: true, name: myName, userId: user?.id || guestId, activity: 'Lobby' });
       }
     });
     

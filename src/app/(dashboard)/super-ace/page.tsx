@@ -36,6 +36,7 @@ export default function SuperAcePage() {
   const { config } = useSlotStore();
   const { balance, deductFunds, addFunds } = useWalletStore();
   const { user } = useAuthStore();
+  const [guestId] = useState(() => `guest-${Math.random().toString(36).slice(2, 10)}`);
   const channelRef = useRef<any>(null);
 
   const [bet, setBet] = useState(10);
@@ -94,7 +95,7 @@ export default function SuperAcePage() {
         await channel.track({
           isLobbyUser: true,
           name: myName,
-          userId: user?.id || 'guest',
+          userId: user?.id || guestId,
           activity: 'Super Ace',
         });
       }

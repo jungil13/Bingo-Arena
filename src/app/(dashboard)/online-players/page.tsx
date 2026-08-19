@@ -14,6 +14,7 @@ interface OnlineUser {
 
 export default function OnlinePlayersPage() {
   const { user } = useAuthStore();
+  const [guestId] = useState(() => `guest-${Math.random().toString(36).slice(2, 10)}`);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,7 +65,7 @@ export default function OnlinePlayersPage() {
         await channel.track({
           isLobbyUser: true,
           name: myName,
-          userId: user?.id || 'guest',
+          userId: user?.id || guestId,
           activity: 'Lobby', // On this page, they are browsing online players from the lobby area
         });
       }
