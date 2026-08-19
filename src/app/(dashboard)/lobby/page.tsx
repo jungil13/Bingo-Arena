@@ -61,6 +61,7 @@ export default function LobbyPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [customName, setCustomName] = useState('My Room');
   const [customAICount, setCustomAICount] = useState(6);
+  const [customEntry, setCustomEntry] = useState(500);
   const [customSpeed, setCustomSpeed] = useState(6000);
   const authUserId = useAuthStore(state => state.user?.id);
   const [userId, setUserId] = useState<string | undefined>();
@@ -117,8 +118,8 @@ export default function LobbyPage() {
       drawSpeed: customSpeed,
       aiCount: customAICount,
       maxPlayers: 50,
-      entry: 0,
-      prize: 0,
+      entry: customEntry,
+      prize: customEntry * (customAICount + 1), // simple prize calculation
       hostId: userId,
     };
     setPendingRoom(room);
@@ -266,23 +267,36 @@ export default function LobbyPage() {
                   />
                 </div>
 
-                {/* AI Count (difficulty) */}
+                {/* Bot Players (AI Count) */}
                 <div>
                   <label className="block text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                    <Star className="w-4 h-4" /> Difficulty: <span className="text-white font-bold">{customAICount <= 4 ? 'Easy' : customAICount <= 9 ? 'Normal' : 'Hard'}</span>
+                    <Users className="w-4 h-4" /> Bot Players (AI)
                   </label>
                   <input
-                    type="range"
-                    min={2}
-                    max={14}
+                    type="number"
+                    min={0}
+                    max={49}
                     value={customAICount}
                     onChange={e => setCustomAICount(Number(e.target.value))}
-                    className="w-full accent-primary h-2 rounded-full"
+                    className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary/50 transition-colors"
                   />
-                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                    <span>Easy</span>
-                    <span>Hard</span>
-                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">More bots = bigger prize pool!</p>
+                </div>
+
+                {/* Bet Points (Entry Fee) */}
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                    <Star className="w-4 h-4 text-gold" /> Bet Points (Entry Fee)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={100}
+                    value={customEntry}
+                    onChange={e => setCustomEntry(Number(e.target.value))}
+                    className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary/50 transition-colors"
+                    placeholder="e.g. 500"
+                  />
                 </div>
 
                 {/* Draw Speed */}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Gift, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,19 +18,35 @@ export default function WalletPage() {
   const [balance, setBalance] = useState(10400); // 10000 + 500 - 100
   const [transactions, setTransactions] = useState(MOCK_TRANSACTIONS);
 
-  const handleGetDemoCoins = () => {
-    setBalance(prev => prev + 1000);
+  const [lastRedeemed, setLastRedeemed] = useState<string | null>(null);
+
+  // Initialize from local storage
+  useEffect(() => {
+    setLastRedeemed(localStorage.getItem('bingo-last-redeem'));
+  }, []);
+
+  const handleRedeemDailyBonus = () => {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    if (lastRedeemed === today) {
+      alert('You have already redeemed your daily bonus today!');
+      return;
+    }
+
+    setBalance(prev => prev + 10000);
     setTransactions(prev => [
       {
         id: `tx-${Date.now()}`,
         type: 'credit',
-        amount: 1000,
-        reason: 'Daily Demo Bonus',
+        amount: 10000,
+        reason: 'Daily Bonus',
         date: new Date().toISOString()
       },
       ...prev
     ]);
+    setLastRedeemed(today);
+    localStorage.setItem('bingo-last-redeem', today);
   };
+
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -97,11 +113,11 @@ export default function WalletPage() {
       <div className="flex justify-between items-center mt-12 mb-6">
         <h2 className="font-outfit text-2xl font-bold">Transaction History</h2>
         <Button 
-          onClick={handleGetDemoCoins}
+          onClick={handleRedeemDailyBonus}
           className="bg-accent hover:bg-accent/80 text-white rounded-full font-medium"
         >
           <Gift className="w-4 h-4 mr-2" />
-          Get Demo Coins
+          Redeem Daily Bonus (10k)
         </Button>
       </div>
 
