@@ -227,6 +227,14 @@ export default function LobbyPage() {
   useEffect(() => {
     setMounted(true);
     const supabase = createClient();
+    
+    // Clean up any existing channel with the same name to prevent hot-reload/strict-mode errors
+    supabase.getChannels().forEach(c => {
+      if (c.topic === 'realtime:global-lobby') {
+        supabase.removeChannel(c);
+      }
+    });
+
     const channel = supabase.channel('global-lobby', { config: { presence: { key: 'lobby' } } });
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();
@@ -238,6 +246,7 @@ export default function LobbyPage() {
       }
       setActiveRooms(Array.from(new Map(rooms.map(r => [r.id, r])).values()));
     }).subscribe();
+    
     return () => { supabase.removeChannel(channel); };
   }, [setActiveRooms]);
 

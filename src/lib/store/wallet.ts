@@ -23,7 +23,7 @@ export const useWalletStore = create<WalletState>()(
     (set, get) => ({
       balance: 10400, // Initial balance
       transactions: [
-        { id: 'tx-initial', type: 'credit', amount: 10400, reason: 'Welcome Bonus', date: new Date().toISOString() }
+        { id: 'tx-initial', type: 'credit' as const, amount: 10400, reason: 'Welcome Bonus', date: new Date().toISOString() }
       ],
       lastRedeemed: null,
 
@@ -33,7 +33,7 @@ export const useWalletStore = create<WalletState>()(
           transactions: [
             {
               id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              type: 'credit',
+              type: 'credit' as const,
               amount,
               reason,
               date: new Date().toISOString()
@@ -54,7 +54,7 @@ export const useWalletStore = create<WalletState>()(
           transactions: [
             {
               id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              type: 'debit',
+              type: 'debit' as const,
               amount,
               reason,
               date: new Date().toISOString()
@@ -79,7 +79,7 @@ export const useWalletStore = create<WalletState>()(
           transactions: [
             {
               id: `tx-${Date.now()}-bonus`,
-              type: 'credit',
+              type: 'credit' as const,
               amount: 10000,
               reason: 'Daily Bonus',
               date: new Date().toISOString()
