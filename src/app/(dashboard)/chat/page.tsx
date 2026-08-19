@@ -36,15 +36,6 @@ function getColorIdx(userId: string) {
 }
 
 const EMOJI_LIST = ['😂','😍','🔥','👏','🎉','💪','🎰','🤑','😎','🍀','🏆','❤️','👍','😢','😮'];
-const LS_KEY    = 'bingo_chat_v1';
-const MAX_MSGS  = 100;
-
-function load(): ChatMessage[] {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
-}
-function save(msgs: ChatMessage[]) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(msgs.slice(-MAX_MSGS))); } catch {}
-}
 
 /* ─────────────────────── Component ────────────────────── */
 export default function ChatPage() {
@@ -55,12 +46,12 @@ export default function ChatPage() {
   const [online,     setOnline]     = useState(0);
   const [showEmoji,  setShowEmoji]  = useState(false);
   const [sending,    setSending]    = useState(false);
-  const [ready,      setReady]      = useState(false);
+  const [loading,    setLoading]    = useState(true);
 
   const listRef     = useRef<HTMLDivElement>(null);
   const inputRef    = useRef<HTMLInputElement>(null);
   const channelRef  = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null);
-  const subscribed  = useRef(false);        // block double-subscribe (React Strict Mode)
+  const subscribed  = useRef(false);
   const myId        = useRef('');
   const myName      = useRef('');
 
@@ -71,18 +62,34 @@ export default function ChatPage() {
     el.scrollTo({ top: el.scrollHeight, behavior: instant ? 'auto' : 'smooth' });
   }, []);
 
-  /* Load history from localStorage */
-  useEffect(() => {
-    setMsgs(load());
-    setReady(true);
-  }, []);
+  /* Fetch initial messages */
+  const fetchMessages = useCallback(async (supabase: ReturnType<typeof createClient>) => {
+    const { data, error } = await supabase
+      .from('global_chats')
+      .select('id, profile_id, guest_name, message, created_at, profiles(username)')
+      .order('created_at', { ascending: false })
+      .limit(100);
 
-  /* Scroll to bottom after history loads */
-  useEffect(() => {
-    if (ready) scrollBottom(true);
-  }, [ready, scrollBottom]);
+    if (error) {
+      console.error('Error fetching chats:', error);
+      return;
+    }
 
-  /* Supabase realtime */
+    if (data) {
+      const formatted: ChatMessage[] = data.reverse().map(d => ({
+        id: d.id,
+        userId: d.profile_id || `guest-${d.guest_name}`,
+        name: (Array.isArray(d.profiles) ? d.profiles[0]?.username : (d.profiles as any)?.username) || d.guest_name || 'Unknown',
+        text: d.message,
+        timestamp: new Date(d.created_at).getTime(),
+      }));
+      setMsgs(formatted);
+      setTimeout(() => scrollBottom(true), 50);
+    }
+    setLoading(false);
+  }, [scrollBottom]);
+
+  /* Supabase realtime & DB */
   useEffect(() => {
     if (subscribed.current) return;
     subscribed.current = true;
@@ -91,19 +98,51 @@ export default function ChatPage() {
     myId.current   = user?.id       || `guest-${Math.random().toString(36).slice(2, 10)}`;
 
     const supabase = createClient();
+    
+    // Load history first
+    fetchMessages(supabase);
+
     const ch = supabase.channel('global-chat', {
       config: { broadcast: { self: true }, presence: { key: myId.current } },
     });
     channelRef.current = ch;
 
-    /* Incoming messages */
-    ch.on('broadcast', { event: 'msg' }, ({ payload }) => {
+    /* Listen to database inserts for persistent messages */
+    ch.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'global_chats' },
+      async (payload) => {
+        const newRecord = payload.new;
+        
+        // Fetch the profile to get the username
+        let username = newRecord.guest_name || 'Unknown';
+        if (newRecord.profile_id) {
+          const { data } = await supabase.from('profiles').select('username').eq('id', newRecord.profile_id).single();
+          if (data) username = data.username;
+        }
+
+        const m: ChatMessage = {
+          id: newRecord.id,
+          userId: newRecord.profile_id || `guest-${newRecord.guest_name}`,
+          name: username,
+          text: newRecord.message,
+          timestamp: new Date(newRecord.created_at).getTime(),
+        };
+
+        setMsgs(prev => {
+          if (prev.some(x => x.id === m.id)) return prev;
+          return [...prev, m].slice(-100);
+        });
+        setTimeout(() => scrollBottom(), 60);
+      }
+    );
+
+    /* Listen to broadcasts for system messages (like joins) */
+    ch.on('broadcast', { event: 'system' }, ({ payload }) => {
       const m = payload as ChatMessage;
       setMsgs(prev => {
         if (prev.some(x => x.id === m.id)) return prev;
-        const next = [...prev, m].slice(-MAX_MSGS);
-        save(next);
-        return next;
+        return [...prev, m].slice(-100);
       });
       setTimeout(() => scrollBottom(), 60);
     });
@@ -127,29 +166,43 @@ export default function ChatPage() {
         timestamp: Date.now(),
         isSystem:  true,
       };
-      ch.send({ type: 'broadcast', event: 'msg', payload: jm });
+      ch.send({ type: 'broadcast', event: 'system', payload: jm });
     });
 
     return () => { supabase.removeChannel(ch); subscribed.current = false; };
-  }, [user, scrollBottom]);
+  }, [user, fetchMessages, scrollBottom]);
 
   /* Send message */
   const send = useCallback(async () => {
     const text = input.trim();
-    if (!text || sending || !channelRef.current) return;
+    if (!text || sending || !user?.id) return; // Only logged in users can chat for now
+    
     setSending(true);
-    const m: ChatMessage = {
-      id:        `msg-${myId.current}-${Date.now()}`,
-      userId:    myId.current,
-      name:      myName.current,
-      text,
-      timestamp: Date.now(),
-    };
-    await channelRef.current.send({ type: 'broadcast', event: 'msg', payload: m });
+    const supabase = createClient();
+    
+    const { error } = await supabase.from('global_chats').insert({
+      profile_id: user.id,
+      message: text
+    });
+
+    if (error) {
+      console.error('Failed to send message', error);
+      alert('DB Insert Error: ' + error.message + '\nDetails: ' + JSON.stringify(error));
+      // Fallback to broadcast if DB insert fails
+      const fallbackMsg: ChatMessage = {
+        id:        `msg-${user.id}-${Date.now()}`,
+        userId:    user.id,
+        name:      user.username || 'Unknown',
+        text,
+        timestamp: Date.now(),
+      };
+      channelRef.current?.send({ type: 'broadcast', event: 'system', payload: fallbackMsg });
+    }
+
     setInput('');
     setSending(false);
     inputRef.current?.focus();
-  }, [input, sending]);
+  }, [input, sending, user]);
 
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -159,7 +212,9 @@ export default function ChatPage() {
 
   /* ─────────────── Render ─────────────── */
   return (
-    <div className="flex flex-col h-full bg-[#f3f0ff]">
+    <div className="flex flex-col bg-[#f3f0ff]"
+      style={{ height: 'calc(100dvh - 0px)' }}
+    >
       {/* Header */}
       <div className="shrink-0 bg-white border-b border-purple-100 px-4 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
@@ -184,14 +239,20 @@ export default function ChatPage() {
         className="flex-1 overflow-y-auto px-3 py-3 space-y-2"
         style={{ overscrollBehavior: 'contain' }}
       >
-        {msgs.length === 0 && (
+        {loading && (
+          <div className="h-full flex flex-col items-center justify-center">
+            <div className="animate-spin w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full" />
+          </div>
+        )}
+
+        {!loading && msgs.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center gap-3 opacity-40 select-none">
             <MessageCircle className="w-12 h-12 text-purple-300" />
             <p className="text-sm text-gray-400 font-medium">No messages yet. Say hello! 👋</p>
           </div>
         )}
 
-        {msgs.map(m => {
+        {!loading && msgs.map(m => {
           if (m.isSystem) return (
             <div key={m.id} className="flex justify-center">
               <span className="text-[10px] bg-purple-50 border border-purple-100 text-purple-500 px-3 py-1 rounded-full font-medium">
@@ -273,14 +334,15 @@ export default function ChatPage() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={onKey}
-            placeholder="Type a message…"
+            placeholder={user?.id ? "Type a message…" : "Log in to chat"}
             maxLength={280}
-            className="flex-1 bg-gray-50 border border-gray-200 focus:border-purple-400 rounded-xl px-4 py-2.5 text-sm text-gray-800 focus:outline-none transition-colors"
+            disabled={!user?.id}
+            className="flex-1 bg-gray-50 border border-gray-200 focus:border-purple-400 rounded-xl px-4 py-2.5 text-sm text-gray-800 focus:outline-none transition-colors disabled:opacity-50"
           />
 
           <motion.button
             onClick={send}
-            disabled={!input.trim() || sending}
+            disabled={!input.trim() || sending || !user?.id}
             whileTap={{ scale: 0.88 }}
             className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-violet-700 flex items-center justify-center text-white shadow-md disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
           >
