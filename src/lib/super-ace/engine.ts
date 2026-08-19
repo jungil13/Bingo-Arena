@@ -24,20 +24,25 @@ export const SYMBOL_MULTIPLIERS: Record<SymbolType, number> = {
 };
 
 const getRandomSymbol = (): SymbolType => {
-  // Simple weighted random: less scatters, more J/Q/K/A
+  // Better balanced RTP distribution to reduce dry streaks
   const rand = Math.random();
-  if (rand < 0.05) return 'SCATTER'; // 5%
-  if (rand < 0.25) return 'SPADE'; // 5% each for suits (20% total)
-  if (rand < 0.30) return 'HEART';
-  if (rand < 0.35) return 'CLUB';
-  if (rand < 0.40) return 'DIAMOND';
   
-  // Remaining 60% for face cards
+  // 3% Scatter, 4% Wild naturally dropping
+  if (rand < 0.03) return 'SCATTER';
+  if (rand < 0.07) return 'WILD';
+  
+  // 24% for high-paying suits (6% each)
+  if (rand < 0.13) return 'SPADE';
+  if (rand < 0.19) return 'HEART';
+  if (rand < 0.25) return 'CLUB';
+  if (rand < 0.31) return 'DIAMOND';
+  
+  // 69% for common face cards (weighted towards J and Q for frequent small wins)
   const faceRand = Math.random();
-  if (faceRand < 0.25) return 'J';
-  if (faceRand < 0.50) return 'Q';
-  if (faceRand < 0.75) return 'K';
-  return 'A';
+  if (faceRand < 0.35) return 'J';      // Most common
+  if (faceRand < 0.65) return 'Q';      // Common
+  if (faceRand < 0.85) return 'K';      // Uncommon
+  return 'A';                           // Rare face
 };
 
 export const generateGrid = (cols = 5, rows = 4): Grid => {
@@ -48,7 +53,7 @@ export const generateGrid = (cols = 5, rows = 4): Grid => {
       col.push({
         id: `${c}-${r}-${Date.now()}-${Math.random()}`,
         type: getRandomSymbol(),
-        isGolden: Math.random() < 0.1 && !['SCATTER', 'WILD'].includes(getRandomSymbol()), // 10% chance to be golden
+        isGolden: Math.random() < 0.15 && !['SCATTER', 'WILD'].includes(getRandomSymbol()), // 15% chance to be golden
       });
     }
     grid.push(col);
@@ -157,7 +162,7 @@ export const cascadeGrid = (grid: Grid, wins: WinResult[]): Grid => {
       survivingCol.unshift({
         id: `${c}-new-${Date.now()}-${Math.random()}`,
         type: getRandomSymbol(),
-        isGolden: Math.random() < 0.1,
+        isGolden: Math.random() < 0.15,
       });
     }
 
