@@ -39,14 +39,13 @@ export function SlotGrid({ grid, wins }: SlotGridProps) {
         >
           {grid.map((col, cIndex) => (
             <div key={`col-${cIndex}`} className="flex flex-col gap-1">
-              <AnimatePresence mode="popLayout">
+              <AnimatePresence>
                 {col.map((cell, rIndex) => {
                   const isWinning = winningPositions.has(`${cIndex},${rIndex}`);
                   return (
                     <motion.div
                       key={cell.id}
-                      layout
-                      initial={{ y: -80, opacity: 0 }}
+                      initial={{ y: -60, opacity: 0 }}
                       animate={{ y: 0, opacity: 1 }}
                       exit={{ scale: 0.4, opacity: 0 }}
                       transition={{

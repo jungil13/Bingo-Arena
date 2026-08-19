@@ -223,6 +223,8 @@ export default function LobbyPage() {
   const [category, setCategory] = useState<GameCategory>('All');
   const [mounted, setMounted]   = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [onlineToasts, setOnlineToasts] = useState<{ id: string; name: string }[]>([]);
+  const { user } = useAuthStore();
 
   useEffect(() => {
     setMounted(true);
@@ -245,10 +247,29 @@ export default function LobbyPage() {
         }
       }
       setActiveRooms(Array.from(new Map(rooms.map(r => [r.id, r])).values()));
-    }).subscribe();
+    });
+
+    channel.on('presence', { event: 'join' }, ({ newPresences }) => {
+      for (const p of newPresences) {
+        if (p.isLobbyUser && p.name && (!user || p.userId !== user.id)) {
+          const toastId = Math.random().toString(36).slice(2);
+          setOnlineToasts(prev => [...prev, { id: toastId, name: p.name }]);
+          setTimeout(() => {
+            setOnlineToasts(prev => prev.filter(t => t.id !== toastId));
+          }, 3500);
+        }
+      }
+    });
+
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        const myName = user?.username || `Guest-${Math.random().toString(36).slice(2, 6)}`;
+        await channel.track({ isLobbyUser: true, name: myName, userId: user?.id });
+      }
+    });
     
     return () => { supabase.removeChannel(channel); };
-  }, [setActiveRooms]);
+  }, [setActiveRooms, user]);
 
   const handleJoinRoom = (room: RoomConfig) => {
     setPendingRoom(room);
@@ -279,6 +300,25 @@ export default function LobbyPage() {
           />
         )}
       </AnimatePresence>
+
+      {/* Online Toasts */}
+      <div className="fixed bottom-20 md:bottom-6 right-4 md:right-8 z-50 flex flex-col gap-2 pointer-events-none">
+        <AnimatePresence>
+          {onlineToasts.map(toast => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, x: 50, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-purple-600 text-white px-4 py-2.5 rounded-xl shadow-lg border border-purple-500 flex items-center gap-2 pointer-events-auto"
+            >
+              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-sm font-bold">{toast.name}</span>
+              <span className="text-sm text-purple-200">is online</span>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
 
       <div className="min-h-full pb-20 md:pb-6">
 
@@ -444,6 +484,17 @@ export default function LobbyPage() {
                             </p>
                           </div>
                         </div>
+
+                        {/* Active Players */}
+                        {room.activePlayers && room.activePlayers.length > 0 && (
+                          <div className="pt-2 border-t border-gray-100 flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] text-gray-500 font-semibold bg-gray-50 px-1.5 py-0.5 rounded-md">Players:</span>
+                            <span className="text-xs font-bold text-purple-600 truncate">
+                              {room.activePlayers.join(', ')} {room.activePlayers.length === 1 ? 'is playing here' : 'are playing here'}
+                            </span>
+                          </div>
+                        )}
+
                         <button
                           disabled={disabled}
                           onClick={() => handleJoinRoom(room)}

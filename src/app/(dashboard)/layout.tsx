@@ -10,7 +10,6 @@ import { motion } from 'framer-motion';
 
 const NAV_ITEMS = [
   { name: 'Home', href: '/lobby', icon: Home },
-  { name: 'Games', href: '/lobby#games', icon: Gamepad2 },
   { name: 'Wallet', href: '/wallet', icon: Wallet },
   { name: 'History', href: '/history', icon: History },
   { name: 'Account', href: '/profile', icon: User },

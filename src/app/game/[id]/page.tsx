@@ -653,7 +653,13 @@ export default function GameRoomPage() {
       }
       const config = pendingRoom;
       if (config) {
-        lobbyChannelRef.current.track({ room: { ...config, status } });
+        lobbyChannelRef.current.track({
+          room: {
+            ...config,
+            status,
+            activePlayers: realPlayers.map((p) => p.name),
+          },
+        });
       }
     }
     return () => {
@@ -662,7 +668,7 @@ export default function GameRoomPage() {
         lobbyChannelRef.current.untrack();
       }
     };
-  }, [isHost, status, pendingRoom]);
+  }, [isHost, status, pendingRoom, realPlayers]);
 
   // Update our presence when ready state changes (for non-host)
   const presenceChannelRef = useRef<any>(null);

@@ -10,6 +10,7 @@ export interface RoomConfig {
   prize: number;
   hostId?: string;
   status?: string;
+  activePlayers?: string[];
 }
 
 interface RoomStore {

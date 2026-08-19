@@ -24,11 +24,13 @@ export default function SuperAcePage() {
   const [totalWin, setTotalWin] = useState(0);
   const [showBigWin, setShowBigWin] = useState(false);
 
-  const { playShuffleBeep, playMark, playBingo, playLose } = useAudio(true);
+  const { playShuffleBeep, playMark, playBingo, playLose, startMusic, stopMusic, announce } = useAudio(true);
 
   useEffect(() => {
     setGrid(generateGrid());
-  }, []);
+    startMusic();
+    return () => stopMusic();
+  }, [startMusic, stopMusic]);
 
   const handleSpin = async () => {
     if (isSpinning || balance < bet) return;
@@ -73,6 +75,9 @@ export default function SuperAcePage() {
       await new Promise(r => setTimeout(r, 500));
 
       const nextMIndex = Math.min(mIndex + 1, MULTIPLIER_STAGES.length - 1);
+      if (nextMIndex > mIndex) {
+        announce(`${MULTIPLIER_STAGES[nextMIndex]} times`);
+      }
       setMultiplierIndex(nextMIndex);
       await evaluateAndCascade(nextGrid, nextMIndex, newTotal);
     } else {
