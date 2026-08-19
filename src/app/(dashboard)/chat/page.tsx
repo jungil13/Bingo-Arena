@@ -212,9 +212,7 @@ export default function ChatPage() {
 
   /* ─────────────── Render ─────────────── */
   return (
-    <div className="flex flex-col bg-[#f3f0ff]"
-      style={{ height: 'calc(100dvh - 0px)' }}
-    >
+    <div className="flex flex-col bg-[#f3f0ff] h-full w-full pb-[72px] md:pb-0">
       {/* Header */}
       <div className="shrink-0 bg-white border-b border-purple-100 px-4 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">

@@ -274,7 +274,7 @@ export default function SuperAcePage() {
   if (!grid) return null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#1a0a2e] p-2">
+    <div className="h-full w-full overflow-y-auto bg-[#1a0a2e] p-2 md:p-4 flex flex-col items-center justify-start xl:justify-center">
       {/* Flex row: game on left, paytable on right (stacks on mobile) */}
       <div className="flex flex-col lg:flex-row items-start gap-3 w-full max-w-[720px] mx-auto">
 

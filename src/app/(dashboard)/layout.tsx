@@ -144,7 +144,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
 
         {/* Page content */}
-        <main className={`flex-1 min-h-0 ${isGame ? 'overflow-hidden flex flex-col' : isChat ? 'overflow-hidden flex flex-col h-full pb-[72px] md:pb-0' : 'overflow-y-auto pb-24'}`}>
+        <main className={`flex-1 min-h-0 ${isGame ? 'overflow-hidden flex flex-col' : isChat ? 'overflow-hidden flex flex-col' : 'overflow-y-auto pb-24'}`}>
           {children}
           {!isGame && !isChat && (
             <footer className="md:hidden py-6 text-center text-[10px] text-gray-400 border-t border-purple-100/50 mt-8">
