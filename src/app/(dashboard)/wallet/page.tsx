@@ -2,147 +2,152 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Gift, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useAuthStore } from '@/lib/store/auth';
-
-// Mock Transactions
-const MOCK_TRANSACTIONS = [
-  { id: 'tx-1', type: 'debit', amount: 100, reason: 'Joined Beginner Room', date: new Date().toISOString() },
-  { id: 'tx-2', type: 'credit', amount: 500, reason: 'Game Prize', date: new Date(Date.now() - 3600000).toISOString() },
-  { id: 'tx-3', type: 'credit', amount: 10000, reason: 'Welcome Bonus', date: new Date(Date.now() - 86400000).toISOString() },
-];
+import {
+  Wallet, TrendingUp, TrendingDown, Gift, Star,
+  ArrowUpRight, ArrowDownRight, RefreshCw
+} from 'lucide-react';
+import { useWalletStore } from '@/lib/store/wallet';
 
 export default function WalletPage() {
-  const { user } = useAuthStore();
-  const [balance, setBalance] = useState(10400); // 10000 + 500 - 100
-  const [transactions, setTransactions] = useState(MOCK_TRANSACTIONS);
+  const { balance, transactions, redeemDailyBonus } = useWalletStore();
+  const [mounted, setMounted] = useState(false);
+  const [redeemMsg, setRedeemMsg] = useState<string | null>(null);
 
-  const [lastRedeemed, setLastRedeemed] = useState<string | null>(null);
+  useEffect(() => { setMounted(true); }, []);
 
-  // Initialize from local storage
-  useEffect(() => {
-    setLastRedeemed(localStorage.getItem('bingo-last-redeem'));
-  }, []);
-
-  const handleRedeemDailyBonus = () => {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    if (lastRedeemed === today) {
-      alert('You have already redeemed your daily bonus today!');
-      return;
-    }
-
-    setBalance(prev => prev + 10000);
-    setTransactions(prev => [
-      {
-        id: `tx-${Date.now()}`,
-        type: 'credit',
-        amount: 10000,
-        reason: 'Daily Bonus',
-        date: new Date().toISOString()
-      },
-      ...prev
-    ]);
-    setLastRedeemed(today);
-    localStorage.setItem('bingo-last-redeem', today);
+  const handleRedeem = () => {
+    const ok = redeemDailyBonus();
+    setRedeemMsg(ok ? 'Daily bonus claimed!' : 'Already claimed today.');
+    setTimeout(() => setRedeemMsg(null), 3000);
   };
 
+  const totalWon  = transactions.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
+  const totalSpent = transactions.filter(t => t.type === 'debit').reduce((s, t) => s + t.amount, 0);
+
+  if (!mounted) return null;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-3xl mx-auto px-4 py-6 pb-24 md:pb-8 space-y-6">
+
+      {/* Header */}
       <div>
-        <h1 className="font-outfit text-3xl font-bold mb-2">Virtual Wallet</h1>
-        <p className="text-muted-foreground">Manage your virtual coins and view transaction history.</p>
+        <h1 className="text-2xl font-bold text-gray-800">My Wallet</h1>
+        <p className="text-sm text-gray-400 mt-0.5">Manage your virtual points and transactions.</p>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="md:col-span-2 glass-card rounded-2xl p-8 border border-primary/30 relative overflow-hidden"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent pointer-events-none" />
-          
-          <div className="relative z-10 flex flex-col h-full justify-between">
-            <div className="flex items-center justify-between mb-8">
-              <span className="text-muted-foreground font-medium flex items-center gap-2">
-                <WalletIcon className="w-5 h-5 text-primary" /> Current Balance
-              </span>
-              <div className="px-3 py-1 bg-white/10 rounded-full text-xs font-medium border border-white/10">
-                Virtual Coins
-              </div>
-            </div>
-            
-            <div>
-              <div className="text-5xl font-outfit font-bold neon-text-gold text-gold tracking-tight mb-2">
-                {balance.toLocaleString()}
-              </div>
-              <p className="text-sm text-muted-foreground">Updated just now</p>
-            </div>
-          </div>
-        </motion.div>
+      {/* Balance card */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl p-6 relative overflow-hidden text-white"
+        style={{ background: 'linear-gradient(135deg,#6d28d9 0%,#7c3aed 50%,#4f46e5 100%)' }}
+      >
+        <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/4 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/4 pointer-events-none" />
 
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="space-y-6"
-        >
-          <div className="glass-card rounded-2xl p-6 border border-white/5">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-muted-foreground text-sm font-medium">Total Won</span>
-              <ArrowUpRight className="w-4 h-4 text-green-400" />
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full">
+              <Wallet className="w-3.5 h-3.5" />
+              <span className="text-xs font-semibold">Virtual Points</span>
             </div>
-            <div className="text-2xl font-bold text-white">
-              500 <span className="text-sm text-muted-foreground font-normal">coins</span>
-            </div>
+            <Star className="w-5 h-5 text-yellow-300" />
           </div>
+          <p className="text-sm font-medium text-white/70 mb-1">Current Balance</p>
+          <p className="text-4xl font-bold tracking-tight">{balance.toLocaleString()}</p>
+          <p className="text-xs text-white/50 mt-1">pts</p>
+        </div>
+      </motion.div>
 
-          <div className="glass-card rounded-2xl p-6 border border-white/5">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-muted-foreground text-sm font-medium">Total Played</span>
-              <ArrowDownRight className="w-4 h-4 text-red-400" />
+      {/* Stats row */}
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: 'Total Earned', value: totalWon, icon: TrendingUp, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-100' },
+          { label: 'Total Spent',  value: totalSpent, icon: TrendingDown, color: 'text-red-500',  bg: 'bg-red-50',   border: 'border-red-100' },
+        ].map(({ label, value, icon: Icon, color, bg, border }) => (
+          <motion.div
+            key={label}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`bg-white rounded-2xl border ${border} p-4 shadow-sm`}
+          >
+            <div className={`w-8 h-8 ${bg} rounded-xl flex items-center justify-center mb-3`}>
+              <Icon className={`w-4 h-4 ${color}`} />
             </div>
-            <div className="text-2xl font-bold text-white">
-              100 <span className="text-sm text-muted-foreground font-normal">coins</span>
-            </div>
-          </div>
-        </motion.div>
+            <p className="text-xs text-gray-400 font-medium mb-0.5">{label}</p>
+            <p className={`text-xl font-bold ${color}`}>{value.toLocaleString()}</p>
+          </motion.div>
+        ))}
       </div>
 
-      <div className="flex justify-between items-center mt-12 mb-6">
-        <h2 className="font-outfit text-2xl font-bold">Transaction History</h2>
-        <Button 
-          onClick={handleRedeemDailyBonus}
-          className="bg-accent hover:bg-accent/80 text-white rounded-full font-medium"
-        >
-          <Gift className="w-4 h-4 mr-2" />
-          Redeem Daily Bonus (10k)
-        </Button>
+      {/* Daily Bonus */}
+      <div className="bg-white rounded-2xl border border-purple-100 p-4 shadow-sm flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+            <Gift className="w-5 h-5 text-purple-600" />
+          </div>
+          <div>
+            <p className="font-semibold text-gray-800 text-sm">Daily Bonus</p>
+            <p className="text-xs text-gray-400">Claim 10,000 pts once per day</p>
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            onClick={handleRedeem}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition-colors shadow-sm"
+          >
+            Claim
+          </button>
+          {redeemMsg && (
+            <p className={`text-[10px] font-medium ${redeemMsg.includes('claimed!') ? 'text-green-500' : 'text-red-400'}`}>
+              {redeemMsg}
+            </p>
+          )}
+        </div>
       </div>
 
-      <div className="glass-card rounded-2xl border border-white/5 overflow-hidden">
-        <div className="divide-y divide-white/5">
-          {transactions.map((tx) => (
-            <div key={tx.id} className="p-6 flex items-center justify-between hover:bg-white/5 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  tx.type === 'credit' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+      {/* Transactions */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-bold text-gray-800">Transactions</h2>
+          <span className="text-xs text-gray-400">{transactions.length} records</span>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-50">
+          {transactions.length === 0 ? (
+            <div className="py-12 text-center text-gray-400">
+              <RefreshCw className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No transactions yet</p>
+            </div>
+          ) : (
+            transactions.map((tx, i) => (
+              <motion.div
+                key={tx.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: i * 0.03 }}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  tx.type === 'credit' ? 'bg-green-100' : 'bg-red-100'
                 }`}>
-                  {tx.type === 'credit' ? <ArrowDownRight className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+                  {tx.type === 'credit'
+                    ? <ArrowDownRight className="w-4 h-4 text-green-600" />
+                    : <ArrowUpRight className="w-4 h-4 text-red-500" />
+                  }
                 </div>
-                <div>
-                  <p className="font-medium">{tx.reason}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {new Date(tx.date).toLocaleDateString()} • {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate">{tx.reason}</p>
+                  <p className="text-[11px] text-gray-400">
+                    {new Date(tx.date).toLocaleDateString()} · {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
-              </div>
-              <div className={`font-bold text-lg ${tx.type === 'credit' ? 'text-green-400' : 'text-red-400'}`}>
-                {tx.type === 'credit' ? '+' : '-'}{tx.amount.toLocaleString()}
-              </div>
-            </div>
-          ))}
+                <span className={`text-sm font-bold flex-shrink-0 ${tx.type === 'credit' ? 'text-green-600' : 'text-red-500'}`}>
+                  {tx.type === 'credit' ? '+' : '-'}{tx.amount.toLocaleString()}
+                </span>
+              </motion.div>
+            ))
+          )}
         </div>
       </div>
     </div>

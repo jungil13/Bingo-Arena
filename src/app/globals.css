@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap');
+
 @import "tailwindcss";
 
 /* Temporarily disabled as it fails to resolve under Turbopack */
@@ -47,6 +48,8 @@
 
   /* Font */
   --font-outfit: 'Outfit', sans-serif;
+  --font-poppins: 'Poppins', sans-serif;
+
   
   --animate-draw: draw 0.5s ease-out;
   --animate-pulse-glow: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
@@ -93,7 +96,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* Optional: subtle ambient gradient */
+    font-family: var(--font-poppins);
     background-image: radial-gradient(circle at 50% -20%, rgba(176, 38, 255, 0.15), transparent 60%);
     background-attachment: fixed;
   }
@@ -124,6 +127,18 @@
   .font-outfit {
     font-family: var(--font-outfit);
   }
+
+  .font-poppins {
+    font-family: var(--font-poppins);
+  }
+
+  .animate-marquee {
+    display: inline-block;
+    animation: marquee 24s linear infinite;
+  }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
 @keyframes draw {
@@ -135,4 +150,9 @@
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 10px rgba(176, 38, 255, 0.4); }
   50% { box-shadow: 0 0 25px rgba(176, 38, 255, 0.8); }
+}
+
+@keyframes marquee {
+  0%   { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
 }

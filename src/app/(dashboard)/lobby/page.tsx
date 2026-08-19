@@ -1,343 +1,460 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Trophy, ArrowRight, Plus, X, Sliders, Zap, Clock, ChevronDown, Star } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { useRoomStore } from '@/lib/store/room';
 import type { RoomConfig } from '@/lib/store/room';
 import { createClient } from '@/lib/supabase/client';
-import { useEffect } from 'react';
 import { useAuthStore } from '@/lib/store/auth';
 import { hasLeftGame } from '@/lib/utils';
+import {
+  Users, Clock, Plus, X, Zap, Gamepad2, Star,
+  ChevronRight, Layers, Bell
+} from 'lucide-react';
 
+/* ── Types ── */
+type GameCategory = 'All' | 'Bingo' | 'Slots';
+
+/* ── Constants ── */
 const PRESET_ROOMS: RoomConfig[] = [
-  {
-    id: 'beginner-room',
-    name: 'Beginner Room',
-    drawSpeed: 8000,
-    aiCount: 5,
-    maxPlayers: 20,
-    entry: 100,
-    prize: 500,
-  },
-  {
-    id: 'standard-room',
-    name: 'Standard Room',
-    drawSpeed: 6000,
-    aiCount: 8,
-    maxPlayers: 30,
-    entry: 500,
-    prize: 2500,
-  },
-  {
-    id: 'premium-room',
-    name: 'Premium Room',
-    drawSpeed: 4000,
-    aiCount: 12,
-    maxPlayers: 50,
-    entry: 2000,
-    prize: 10000,
-  },
-];
-
-const ROOM_COLORS = [
-  { bg: 'from-emerald-500/20 to-emerald-500/5', border: 'border-emerald-500/30', accent: 'text-emerald-400', badge: 'bg-emerald-500/20 text-emerald-300' },
-  { bg: 'from-violet-500/20 to-violet-500/5', border: 'border-violet-500/30', accent: 'text-violet-400', badge: 'bg-violet-500/20 text-violet-300' },
-  { bg: 'from-amber-500/20 to-amber-500/5', border: 'border-amber-500/30', accent: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-300' },
+  { id: 'beginner-room', name: 'Beginner Room', drawSpeed: 8000, aiCount: 5,  maxPlayers: 20, entry: 100,  prize: 500   },
+  { id: 'standard-room', name: 'Standard Room', drawSpeed: 6000, aiCount: 8,  maxPlayers: 30, entry: 500,  prize: 2500  },
+  { id: 'premium-room',  name: 'Premium Room',  drawSpeed: 4000, aiCount: 12, maxPlayers: 50, entry: 2000, prize: 10000 },
 ];
 
 const SPEED_OPTIONS = [
-  { label: 'Slow (10s)', value: 10000 },
+  { label: 'Slow (8s)',   value: 8000 },
   { label: 'Normal (6s)', value: 6000 },
-  { label: 'Fast (4s)', value: 4000 },
+  { label: 'Fast (4s)',   value: 4000 },
   { label: 'Ultra (2s)', value: 2000 },
 ];
 
-export default function LobbyPage() {
-  const router = useRouter();
-  const { setPendingRoom, activeRooms, setActiveRooms } = useRoomStore();
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [customName, setCustomName] = useState('My Room');
-  const [customAICount, setCustomAICount] = useState(6);
-  const [customEntry, setCustomEntry] = useState(500);
-  const [customSpeed, setCustomSpeed] = useState(6000);
-  const authUserId = useAuthStore(state => state.user?.id);
-  const [userId, setUserId] = useState<string | undefined>();
+const SPEED_LABEL: Record<number, string> = { 8000: '8s', 6000: '6s', 4000: '4s', 2000: '2s' };
 
-  useEffect(() => {
-    if (authUserId) {
-      setUserId(authUserId);
-    } else {
-      let guestId = sessionStorage.getItem('bingo-guest-id');
-      if (!guestId) {
-        guestId = 'guest-' + Math.random().toString(36).slice(2, 9);
-        sessionStorage.setItem('bingo-guest-id', guestId);
-      }
-      setUserId(guestId);
-    }
-  }, [authUserId]);
+const ROOM_GRADIENTS = [
+  'linear-gradient(135deg,#10b981,#059669)',
+  'linear-gradient(135deg,#8b5cf6,#6d28d9)',
+  'linear-gradient(135deg,#7c3aed,#4c1d95)',
+];
 
-  useEffect(() => {
-    const supabase = createClient();
+/* ── Game catalogue ── */
+interface GameCard {
+  id: string; title: string; category: GameCategory;
+  tag?: string; tagColor?: string; href?: string;
+  description: string; gradient: string; emoji: string;
+}
 
-    const channel = supabase.channel('global-lobby', {
-      config: { presence: { key: 'lobby' } },
+const GAME_CATALOGUE: GameCard[] = [
+  {
+    id: 'super-ace', title: 'Super Ace', category: 'Slots',
+    tag: 'HOT', tagColor: 'bg-red-500', href: '/super-ace',
+    description: 'Cascading reels · Multipliers · Scatters',
+    gradient: 'from-violet-600 to-purple-800', emoji: '🃏',
+  },
+];
+
+const CATEGORIES: GameCategory[] = ['All', 'Bingo', 'Slots'];
+
+/* ── Create Room Modal ── */
+function CreateRoomModal({ onClose, onCreate }: {
+  onClose: () => void;
+  onCreate: (room: RoomConfig) => void;
+}) {
+  const { user } = useAuthStore();
+  const [name, setName]         = useState('');
+  const [speed, setSpeed]       = useState(6000);
+  const [maxPlayers, setMax]    = useState(20);
+  const [entry, setEntry]       = useState(100);
+  const [aiCount, setAiCount]   = useState(5);
+
+  const prize = entry * maxPlayers * 0.8;
+
+  const handleCreate = () => {
+    if (!name.trim()) return;
+    const id = `custom-${Date.now()}`;
+    onCreate({
+      id, name: name.trim(), drawSpeed: speed,
+      aiCount, maxPlayers, entry, prize,
+      hostId: user?.id,
     });
-
-    channel.on('presence', { event: 'sync' }, () => {
-      const state = channel.presenceState();
-      const rooms: RoomConfig[] = [];
-      for (const presenceKey in state) {
-        for (const p of state[presenceKey] as any[]) {
-          if (p.room) {
-            rooms.push(p.room);
-          }
-        }
-      }
-      // Deduplicate rooms by ID
-      const uniqueRooms = Array.from(new Map(rooms.map(r => [r.id, r])).values());
-      setActiveRooms(uniqueRooms);
-    }).subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [setActiveRooms]);
-
-  const handleJoin = (room: RoomConfig) => {
-    setPendingRoom(room);
-    router.push(`/game/${room.id}`);
-  };
-
-  const handleCreateRoom = () => {
-    const room: RoomConfig = {
-      id: `custom-${Date.now()}`,
-      name: customName || 'My Room',
-      drawSpeed: customSpeed,
-      aiCount: customAICount,
-      maxPlayers: 50,
-      entry: customEntry,
-      prize: customEntry * (customAICount + 1), // simple prize calculation
-      hostId: userId,
-    };
-    setPendingRoom(room);
-    router.push(`/game/${room.id}`);
   };
 
   return (
-    <div className="max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
-        <div>
-          <h1 className="font-outfit text-3xl font-bold mb-1">Bingo Lobby</h1>
-          <p className="text-muted-foreground text-sm">Pick a room or create your own and compete for points!</p>
-        </div>
-        <motion.button
-          whileHover={{ scale: 1.04 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-5 py-3 rounded-xl bg-primary text-white font-bold text-sm shadow-[0_0_20px_rgba(176,38,255,0.3)] hover:shadow-[0_0_30px_rgba(176,38,255,0.5)] transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          Create Room
-        </motion.button>
-      </div>
-
-      {/* Room Grid */}
-      <div className="grid md:grid-cols-3 gap-5">
-        {[...activeRooms, ...PRESET_ROOMS].map((room, index) => {
-          const colors = ROOM_COLORS[index % ROOM_COLORS.length];
-          const fakePlayers = [12, 21, 37][index % 3];
-          return (
-            <motion.div
-              key={room.id}
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.08 }}
-              className={`relative glass-card rounded-2xl overflow-hidden border ${colors.border} group cursor-pointer`}
-              onClick={() => handleJoin(room)}
-            >
-              <div className={`absolute inset-0 bg-gradient-to-b ${colors.bg} pointer-events-none`} />
-
-              <div className="p-6 relative z-10">
-                <div className="flex justify-between items-start mb-5">
-                  <h3 className="font-outfit text-xl font-bold">{room.name}</h3>
-                  {(() => {
-                    const hasLeft = hasLeftGame(room.id);
-                    const isInProgress = room.status === 'IN_PROGRESS' || room.status === 'STARTING';
-                    if (hasLeft) {
-                      return <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-red-500/20 text-red-300">Left Game</span>;
-                    }
-                    if (isInProgress) {
-                      return <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-300">In Progress</span>;
-                    }
-                    return <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${colors.badge}`}>Waiting</span>;
-                  })()}
-                </div>
-
-                <div className="space-y-3 mb-6">
-                  <StatRow icon={<Star className={`w-4 h-4 ${colors.accent}`} />} label="Points Prize" value={room.prize > 0 ? `⭐ ${room.prize.toLocaleString()} pts` : 'Free'} />
-                  <StatRow icon={<Users className="w-4 h-4 text-muted-foreground" />} label="Players" value={`${fakePlayers} / ${room.maxPlayers}`} />
-                  <StatRow icon={<Clock className="w-4 h-4 text-muted-foreground" />} label="Draw Speed" value={SPEED_OPTIONS.find(s => s.value === room.drawSpeed)?.label ?? '6s'} />
-                </div>
-
-                {/* Player fill bar */}
-                <div className="w-full h-1.5 bg-background/60 rounded-full overflow-hidden mb-5">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(fakePlayers / room.maxPlayers) * 100}%` }}
-                    transition={{ delay: index * 0.08 + 0.4, duration: 0.6 }}
-                    className="h-full bg-primary rounded-full"
-                  />
-                </div>
-
-                <button 
-                  disabled={hasLeftGame(room.id) || room.status === 'IN_PROGRESS' || room.status === 'STARTING'}
-                  className="w-full py-3 rounded-xl font-bold text-sm bg-primary/90 hover:bg-primary text-white flex items-center justify-center gap-2 transition-colors group-hover:shadow-[0_0_20px_rgba(176,38,255,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
-                >
-                  Join Room <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
-
-      {/* How to Play */}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="mt-10 glass-card rounded-2xl p-6 border border-white/5"
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 16 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        onClick={e => e.stopPropagation()}
       >
-        <h2 className="font-outfit text-lg font-bold mb-4 flex items-center gap-2">
-          <Zap className="w-5 h-5 text-primary" /> How to Play
-        </h2>
-        <div className="grid sm:grid-cols-4 gap-4 text-sm text-muted-foreground">
-          {[
-            { step: '1', text: 'Join or create a room' },
-            { step: '2', text: 'Numbers are drawn automatically' },
-            { step: '3', text: 'Tap matching numbers on your card' },
-            { step: '4', text: 'Get 5 in a row to win BINGO!' },
-          ].map(({ step, text }) => (
-            <div key={step} className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-primary/20 text-primary text-sm font-bold flex items-center justify-center shrink-0">{step}</div>
-              <span>{text}</span>
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between"
+          style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)' }}
+        >
+          <div className="flex items-center gap-2">
+            <Plus className="w-4 h-4 text-white" />
+            <h2 className="font-bold text-white text-base">Create Bingo Room</h2>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors">
+            <X className="w-4 h-4 text-white" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-4">
+          {/* Room Name */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Room Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              maxLength={30}
+              placeholder="e.g. Friday Night Bingo"
+              className="w-full bg-gray-50 border border-gray-200 focus:border-purple-400 rounded-xl px-4 py-2.5 text-sm text-gray-800 focus:outline-none transition-colors"
+            />
+          </div>
+
+          {/* Draw Speed */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Draw Speed</label>
+            <div className="grid grid-cols-4 gap-2">
+              {SPEED_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setSpeed(opt.value)}
+                  className={`py-2 rounded-xl text-xs font-bold transition-all ${
+                    speed === opt.value
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-500 hover:bg-purple-50 hover:text-purple-600'
+                  }`}
+                >
+                  {opt.label.split(' ')[0]}<br />
+                  <span className="font-normal">{opt.label.split(' ')[1]}</span>
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
+
+          {/* Sliders row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">
+                Max Players: <span className="text-purple-600">{maxPlayers}</span>
+              </label>
+              <input type="range" min={5} max={50} value={maxPlayers}
+                onChange={e => setMax(+e.target.value)}
+                className="w-full accent-purple-600"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">
+                AI Bots: <span className="text-purple-600">{aiCount}</span>
+              </label>
+              <input type="range" min={0} max={20} value={aiCount}
+                onChange={e => setAiCount(+e.target.value)}
+                className="w-full accent-purple-600"
+              />
+            </div>
+          </div>
+
+          {/* Entry Fee */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+              Entry Fee (pts)
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              {[50, 100, 500, 1000, 2000].map(v => (
+                <button key={v} onClick={() => setEntry(v)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    entry === v
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-500 hover:bg-purple-50 hover:text-purple-600'
+                  }`}
+                >
+                  {v.toLocaleString()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Prize preview */}
+          <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Star className="w-4 h-4 text-purple-500" />
+              <span className="text-sm font-semibold text-purple-700">Estimated Prize Pool</span>
+            </div>
+            <span className="font-bold text-purple-700">{prize.toLocaleString()} pts</span>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 pb-5 flex gap-3">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleCreate}
+            disabled={!name.trim()}
+            className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+          >
+            Create Room
+          </button>
         </div>
       </motion.div>
-
-      {/* Create Room Modal */}
-      <AnimatePresence>
-        {showCreateModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-            onClick={(e) => e.target === e.currentTarget && setShowCreateModal(false)}
-          >
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              className="bg-card border border-white/10 rounded-3xl p-6 w-full max-w-md shadow-2xl"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="font-outfit text-xl font-bold">Create Room</h2>
-                <button onClick={() => setShowCreateModal(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="space-y-5">
-                {/* Room Name */}
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-2">Room Name</label>
-                  <input
-                    type="text"
-                    value={customName}
-                    onChange={e => setCustomName(e.target.value)}
-                    maxLength={24}
-                    className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary/50 transition-colors"
-                    placeholder="My Bingo Room"
-                  />
-                </div>
-
-                {/* Bot Players (AI Count) */}
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                    <Users className="w-4 h-4" /> Bot Players (AI)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={49}
-                    value={customAICount}
-                    onChange={e => setCustomAICount(Number(e.target.value))}
-                    className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary/50 transition-colors"
-                  />
-                  <p className="text-xs text-muted-foreground mt-2">More bots = bigger prize pool!</p>
-                </div>
-
-                {/* Bet Points (Entry Fee) */}
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                    <Star className="w-4 h-4 text-gold" /> Bet Points (Entry Fee)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={100}
-                    value={customEntry}
-                    onChange={e => setCustomEntry(Number(e.target.value))}
-                    className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary/50 transition-colors"
-                    placeholder="e.g. 500"
-                  />
-                </div>
-
-                {/* Draw Speed */}
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                    <Sliders className="w-4 h-4" /> Draw Speed
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={customSpeed}
-                      onChange={e => setCustomSpeed(Number(e.target.value))}
-                      className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm text-white appearance-none focus:outline-none focus:border-primary/50 transition-colors pr-10"
-                    >
-                      {SPEED_OPTIONS.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={handleCreateRoom}
-                className="mt-6 w-full py-4 rounded-xl bg-primary text-white font-bold text-base hover:bg-primary/90 transition-colors shadow-[0_0_20px_rgba(176,38,255,0.3)]"
-              >
-                Start Game →
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
 
-function StatRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+/* ── Main Page ── */
+export default function LobbyPage() {
+  const router = useRouter();
+  const { setPendingRoom, activeRooms, setActiveRooms } = useRoomStore();
+  const [category, setCategory] = useState<GameCategory>('All');
+  const [mounted, setMounted]   = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const supabase = createClient();
+    const channel = supabase.channel('global-lobby', { config: { presence: { key: 'lobby' } } });
+    channel.on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState();
+      const rooms: RoomConfig[] = [];
+      for (const key in state) {
+        for (const p of state[key] as any[]) {
+          if (p.room) rooms.push(p.room);
+        }
+      }
+      setActiveRooms(Array.from(new Map(rooms.map(r => [r.id, r])).values()));
+    }).subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [setActiveRooms]);
+
+  const handleJoinRoom = (room: RoomConfig) => {
+    setPendingRoom(room);
+    router.push(`/game/${room.id}`);
+  };
+
+  const handleCreateRoom = (room: RoomConfig) => {
+    setShowCreate(false);
+    setPendingRoom(room);
+    router.push(`/game/${room.id}`);
+  };
+
+  const allRoomsMap = new Map([...PRESET_ROOMS, ...activeRooms].map(r => [r.id, r]));
+  const allRooms = Array.from(allRoomsMap.values());
+  const showBingo = category === 'All' || category === 'Bingo';
+  const showSlots = category === 'All' || category === 'Slots';
+
+  if (!mounted) return null;
+
   return (
-    <div className="flex items-center justify-between text-sm">
-      <span className="text-muted-foreground flex items-center gap-2">{icon}{label}</span>
-      <span className="font-medium text-white">{value}</span>
-    </div>
+    <>
+      {/* Create Room Modal */}
+      <AnimatePresence>
+        {showCreate && (
+          <CreateRoomModal
+            onClose={() => setShowCreate(false)}
+            onCreate={handleCreateRoom}
+          />
+        )}
+      </AnimatePresence>
+
+      <div className="min-h-full pb-20 md:pb-6">
+
+        {/* Hero */}
+        <div className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg,#1a0028 0%,#3b0764 50%,#1a0028 100%)', minHeight: 160 }}>
+          <div className="absolute -top-10 -right-10 w-52 h-52 rounded-full bg-purple-500/20 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-10 -left-10 w-52 h-52 rounded-full bg-purple-500/20 blur-3xl pointer-events-none" />
+          <div className="relative z-10 px-4 md:px-8 py-8 flex items-center justify-between max-w-5xl">
+            <div>
+              <p className="text-purple-300 text-xs font-semibold uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                <Zap className="w-3 h-3" /> Now Live
+              </p>
+              <h1 className="font-bold text-white text-2xl md:text-3xl leading-tight mb-1.5">
+                Bingo Arena <span className="text-purple-400">Game Hub</span>
+              </h1>
+              <p className="text-purple-200/70 text-sm">Play Bingo &amp; Super Ace · Win Points</p>
+            </div>
+            <Gamepad2 className="w-16 h-16 text-purple-300/40 hidden sm:block" />
+          </div>
+        </div>
+
+        {/* Ticker */}
+        <div className="bg-purple-50 border-b border-purple-200 px-4 py-2 flex items-center gap-2 overflow-hidden">
+          <Bell className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
+          <p className="text-xs text-purple-700 font-medium whitespace-nowrap overflow-hidden">
+            Welcome to Bingo Arena! &nbsp;|&nbsp; Claim your daily bonus of 10,000 points in the Wallet page! &nbsp;|&nbsp; More games coming soon!
+          </p>
+        </div>
+
+        <div className="px-4 md:px-8 pt-5 max-w-5xl mx-auto">
+
+          {/* Category tabs */}
+          <div className="flex items-center gap-2 mb-6 overflow-x-auto no-scrollbar pb-1">
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setCategory(cat)}
+                className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
+                  category === cat
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : 'bg-white text-gray-500 border border-gray-200 hover:border-purple-300 hover:text-purple-600'
+                }`}
+              >
+                {cat === 'Bingo' ? 'Bingo' : cat === 'Slots' ? 'Slots' : 'All Games'}
+              </button>
+            ))}
+          </div>
+
+          {/* Slots */}
+          {showSlots && (
+            <section className="mb-8">
+              <div className="flex items-center gap-2 mb-3">
+                <Layers className="w-4 h-4 text-purple-500" />
+                <h2 className="font-bold text-gray-800 text-base">Slot Games</h2>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {GAME_CATALOGUE.filter(g => g.category === 'Slots').map((game, i) => (
+                  <motion.div
+                    key={game.id}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    onClick={() => game.href && router.push(game.href)}
+                    className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer"
+                  >
+                    <div className={`bg-gradient-to-br ${game.gradient} aspect-[4/3] flex items-center justify-center relative`}>
+                      <span className="text-5xl">{game.emoji}</span>
+                      {game.tag && (
+                        <span className={`absolute top-2 left-2 text-[10px] font-black text-white px-1.5 py-0.5 rounded-md ${game.tagColor}`}>
+                          {game.tag}
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-2.5">
+                      <p className="font-bold text-gray-800 text-sm">{game.title}</p>
+                      <p className="text-gray-400 text-[10px] mt-0.5">{game.description}</p>
+                      <div className="mt-2 w-full py-1.5 bg-purple-600 text-white rounded-lg text-xs font-bold text-center">
+                        Play Now
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+
+                {/* Coming soon */}
+                <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-dashed border-gray-200 opacity-50 pointer-events-none">
+                  <div className="bg-gray-50 aspect-[4/3] flex flex-col items-center justify-center gap-1">
+                    <Plus className="w-6 h-6 text-gray-300" />
+                    <span className="text-[11px] text-gray-400 font-semibold">Coming Soon</span>
+                  </div>
+                  <div className="p-2.5">
+                    <p className="font-bold text-gray-300 text-sm">New Slot</p>
+                    <p className="text-gray-200 text-[10px] mt-0.5">Stay tuned!</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Bingo */}
+          {showBingo && (
+            <section className="mb-8">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-purple-500" />
+                  <h2 className="font-bold text-gray-800 text-base">Bingo Rooms</h2>
+                  <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{allRooms.length} live</span>
+                </div>
+                {/* Create Room Button */}
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Create Room
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {allRooms.map((room, i) => {
+                  const left       = hasLeftGame(room.id);
+                  const inProgress = room.status === 'IN_PROGRESS' || room.status === 'STARTING';
+                  const disabled   = left || inProgress;
+                  return (
+                    <motion.div
+                      key={room.id}
+                      initial={{ opacity: 0, y: 16 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md transition-all"
+                    >
+                      {/* Colour header */}
+                      <div
+                        className="px-4 py-3 flex items-center justify-between"
+                        style={{ background: ROOM_GRADIENTS[i % ROOM_GRADIENTS.length] }}
+                      >
+                        <p className="font-bold text-white text-sm">{room.name}</p>
+                        {left ? (
+                          <span className="text-[10px] font-bold bg-red-500/80 text-white px-2 py-0.5 rounded-full">Left</span>
+                        ) : inProgress ? (
+                          <span className="text-[10px] font-bold bg-blue-400/80 text-white px-2 py-0.5 rounded-full">Live</span>
+                        ) : (
+                          <span className="text-[10px] font-bold bg-white/30 text-white px-2 py-0.5 rounded-full">Waiting</span>
+                        )}
+                      </div>
+
+                      {/* Details */}
+                      <div className="px-4 py-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs text-gray-400">
+                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {SPEED_LABEL[room.drawSpeed] ?? '6s'} draw</span>
+                          <span className="flex items-center gap-1"><Users className="w-3 h-3" /> Max {room.maxPlayers}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-[10px] text-gray-400">Entry</p>
+                            <p className="font-bold text-gray-800 text-sm flex items-center gap-1">
+                              <Star className="w-3 h-3 text-yellow-400" /> {room.entry.toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] text-gray-400">Prize</p>
+                            <p className="font-bold text-purple-600 text-sm flex items-center gap-1 justify-end">
+                              <Star className="w-3 h-3 text-yellow-400" /> {room.prize.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          disabled={disabled}
+                          onClick={() => handleJoinRoom(room)}
+                          className="w-full py-2 rounded-xl font-bold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                          style={{
+                            background: disabled ? '#e5e7eb' : 'linear-gradient(135deg,#7c3aed,#6d28d9)',
+                            color: disabled ? '#9ca3af' : 'white',
+                          }}
+                        >
+                          {left ? 'Already Left' : inProgress ? 'In Progress' : <>Join Room <ChevronRight className="w-3.5 h-3.5" /></>}
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
+    </>
   );
 }
