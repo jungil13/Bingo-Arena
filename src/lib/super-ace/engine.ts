@@ -66,6 +66,31 @@ export const generateGrid = (cols = 5, rows = 4, isFreeSpins = false): Grid => {
   return grid;
 };
 
+export const generateDudGrid = (cols = 5, rows = 4): Grid => {
+  const grid: Grid = [];
+  for (let c = 0; c < cols; c++) {
+    const col: GridCell[] = [];
+    for (let r = 0; r < rows; r++) {
+      let type: SymbolType;
+      if (c === 0) {
+        type = Math.random() < 0.5 ? 'J' : 'Q';
+      } else if (c === 1) {
+        type = Math.random() < 0.5 ? 'K' : 'A';
+      } else {
+        const s = getRandomSymbol();
+        type = (s === 'WILD' || s === 'SCATTER') ? 'J' : s; 
+      }
+      col.push({
+        id: `${c}-${r}-${Date.now()}-${Math.random()}`,
+        type,
+        isGolden: false, // No golden symbols on dud spins
+      });
+    }
+    grid.push(col);
+  }
+  return grid;
+};
+
 export interface WinResult {
   symbol: SymbolType;
   positions: { col: number; row: number }[];

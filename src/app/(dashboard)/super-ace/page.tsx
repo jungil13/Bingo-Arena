@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   generateGrid,
+  generateDudGrid,
   evaluateWins,
   cascadeGrid,
   Grid,
@@ -131,8 +132,13 @@ export default function SuperAcePage() {
     // Play shuffle sounds during spin
     const shuffleInterval = setInterval(() => playShuffleBeep(), 80);
 
+    // 80% chance of a dud spin where nothing happens (no wilds, no wins)
+    const isDudSpin = Math.random() < 0.8;
+
     // Generate the final grid while reels "spin"
-    const finalGrid = generateGrid(5, 4, isFreeSpinRound);
+    const finalGrid = isDudSpin && !isFreeSpinRound
+      ? generateDudGrid(5, 4)
+      : generateGrid(5, 4, isFreeSpinRound);
     setGrid(finalGrid);
 
     // Wait for all 5 reels to stop (SlotGrid fires onReelsStopped)
