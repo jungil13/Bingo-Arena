@@ -1,30 +1,74 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { generateGrid, evaluateWins, cascadeGrid, Grid, WinResult } from '@/lib/super-ace/engine';
+import {
+  generateGrid,
+  evaluateWins,
+  cascadeGrid,
+  Grid,
+  WinResult,
+  freeSpinsForScatters,
+  countScatters,
+} from '@/lib/super-ace/engine';
 import { SlotGrid } from '@/components/super-ace/SlotGrid';
 import { Controls } from '@/components/super-ace/Controls';
 import { MultiplierBar } from '@/components/super-ace/MultiplierBar';
+import { FreeSpinsOverlay, FreeSpinsHUD, FreeSpinsComplete } from '@/components/super-ace/FreeSpinsOverlay';
 import { useWalletStore } from '@/lib/store/wallet';
+import { useSlotStore } from '@/lib/store/slotStore';
 import { useAudio } from '@/lib/hooks/useAudio';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 
-const MULTIPLIER_STAGES = [1, 2, 3, 5];
+type GamePhase =
+  | 'idle'
+  | 'spinning'       // reels are spinning
+  | 'evaluating'     // win evaluation + cascade
+  | 'scatter_intro'  // showing free-spins overlay
+  | 'free_spin'      // free-spin round active
+  | 'free_spin_end'  // showing free-spins complete summary
+  | 'big_win';       // big-win celebration
 
 export default function SuperAcePage() {
+  const { config } = useSlotStore();
   const { balance, deductFunds, addFunds } = useWalletStore();
   const [bet, setBet] = useState(10);
   const [grid, setGrid] = useState<Grid | null>(null);
-  const [isSpinning, setIsSpinning] = useState(false);
+  const [phase, setPhase] = useState<GamePhase>('idle');
+  const [isShuffling, setIsShuffling] = useState(false);
 
   const [multiplierIndex, setMultiplierIndex] = useState(0);
   const [currentWins, setCurrentWins] = useState<WinResult[]>([]);
   const [totalWin, setTotalWin] = useState(0);
   const [showBigWin, setShowBigWin] = useState(false);
 
+  // Free-spins state
+  const [freeSpinsTotal, setFreeSpinsTotal] = useState(0);
+  const [freeSpinsRemaining, setFreeSpinsRemaining] = useState(0);
+  const [freeSpinsWin, setFreeSpinsWin] = useState(0);
+  const [pendingFreeSpins, setPendingFreeSpins] = useState(0); // from scatter trigger
+  const [scatterCount, setScatterCount] = useState(0);
+
   const { playShuffleBeep, playMark, playBingo, playLose, startMusic, stopMusic, announce } = useAudio(true);
+
+  const isSpinning = phase === 'spinning' || phase === 'evaluating' || phase === 'free_spin' || phase === 'scatter_intro';
+  const isFreeSpinMode = freeSpinsRemaining > 0 && phase === 'free_spin';
+
+  // Resolve callback ref (used to unblock spin loop after reels stop)
+  const reelStopResolveRef = useRef<(() => void) | null>(null);
+
+  /** Wait for all reels to stop before proceeding */
+  const waitForReels = useCallback((): Promise<void> => {
+    return new Promise(resolve => {
+      reelStopResolveRef.current = resolve;
+    });
+  }, []);
+
+  const handleReelsStopped = useCallback(() => {
+    reelStopResolveRef.current?.();
+    reelStopResolveRef.current = null;
+  }, []);
 
   useEffect(() => {
     setGrid(generateGrid());
@@ -32,33 +76,69 @@ export default function SuperAcePage() {
     return () => stopMusic();
   }, [startMusic, stopMusic]);
 
-  const handleSpin = async () => {
-    if (isSpinning || balance < bet) return;
+  /* ── Core spin logic ── */
+  const runSpin = useCallback(async (isFreeSpinRound = false) => {
+    const currentBet = isFreeSpinRound ? bet : bet;
 
-    const success = deductFunds(bet, 'Super Ace Bet');
-    if (!success) return;
+    if (!isFreeSpinRound) {
+      const success = deductFunds(currentBet, 'Super Ace Bet');
+      if (!success) return;
+    }
 
-    setIsSpinning(true);
+    setPhase('spinning');
     setMultiplierIndex(0);
-    setTotalWin(0);
+    if (!isFreeSpinRound) {
+      setTotalWin(0);
+      setFreeSpinsWin(0);
+    }
     setCurrentWins([]);
     setShowBigWin(false);
 
-    // Rapid shuffle animation
-    for (let i = 0; i < 6; i++) {
-      playShuffleBeep();
-      setGrid(generateGrid());
-      await new Promise(r => setTimeout(r, 90));
+    // Start reel animations
+    setIsShuffling(true);
+
+    // Play shuffle sounds during spin
+    const shuffleInterval = setInterval(() => playShuffleBeep(), 80);
+
+    // Generate the final grid while reels "spin"
+    const finalGrid = generateGrid(5, 4, isFreeSpinRound);
+    setGrid(finalGrid);
+
+    // Wait for all 5 reels to stop (SlotGrid fires onReelsStopped)
+    await waitForReels();
+    clearInterval(shuffleInterval);
+    setIsShuffling(false);
+
+    // Short pause, then evaluate
+    await new Promise(r => setTimeout(r, 120));
+    setPhase('evaluating');
+
+    // Check for scatter / free spins trigger
+    const sc = countScatters(finalGrid);
+    if (sc >= 3 && !isFreeSpinRound) {
+      // Find matching scatter requirement, default to 0 if not configured
+      const req = config.scatterRequirements.slice().reverse().find(r => sc >= r.scatters);
+      if (req) {
+        const spinsAwarded = req.spinsAwarded;
+        setScatterCount(sc);
+        setPendingFreeSpins(spinsAwarded);
+        setPhase('scatter_intro');
+        return; // wait for player to tap GO
+      }
     }
 
-    const finalGrid = generateGrid();
-    setGrid(finalGrid);
-    await evaluateAndCascade(finalGrid, 0, 0);
-  };
+    await evaluateAndCascade(finalGrid, 0, isFreeSpinRound ? freeSpinsWin : 0, isFreeSpinRound);
+  }, [bet, deductFunds, freeSpinsWin, playShuffleBeep, waitForReels]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const evaluateAndCascade = async (currentGrid: Grid, mIndex: number, currentTotal: number) => {
-    const activeMultiplier = MULTIPLIER_STAGES[mIndex];
-    const wins = evaluateWins(currentGrid, bet);
+  const evaluateAndCascade = async (
+    currentGrid: Grid,
+    mIndex: number,
+    currentTotal: number,
+    isFreeRound: boolean,
+  ) => {
+    const activeMultiplierStages = isFreeRound ? config.freeSpinMultipliers : config.normalMultipliers;
+    const activeMultiplier = activeMultiplierStages[mIndex] || activeMultiplierStages[activeMultiplierStages.length - 1];
+    const { wins } = evaluateWins(currentGrid, bet);
 
     if (wins.length > 0) {
       playMark();
@@ -67,44 +147,77 @@ export default function SuperAcePage() {
 
       setCurrentWins(wins);
       setTotalWin(newTotal);
-      await new Promise(r => setTimeout(r, 1100));
+      if (isFreeRound) setFreeSpinsWin(newTotal);
+      await new Promise(r => setTimeout(r, 1200));
 
-      const nextGrid = cascadeGrid(currentGrid, wins);
+      const nextGrid = cascadeGrid(currentGrid, wins, isFreeRound);
       setGrid(nextGrid);
       setCurrentWins([]);
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 450));
 
-      const nextMIndex = Math.min(mIndex + 1, MULTIPLIER_STAGES.length - 1);
-      if (nextMIndex > mIndex) {
-        announce(`${MULTIPLIER_STAGES[nextMIndex]} times`);
-      }
+      const nextMIndex = Math.min(mIndex + 1, activeMultiplierStages.length - 1);
+      if (nextMIndex > mIndex) announce(`${activeMultiplierStages[nextMIndex]} times`);
       setMultiplierIndex(nextMIndex);
-      await evaluateAndCascade(nextGrid, nextMIndex, newTotal);
+      await evaluateAndCascade(nextGrid, nextMIndex, newTotal, isFreeRound);
     } else {
+      // Round over
       if (currentTotal > 0) {
-        addFunds(currentTotal, 'Super Ace Win');
+        if (!isFreeRound) {
+          addFunds(currentTotal, 'Super Ace Win');
+        }
         if (currentTotal > bet * 5) {
           playBingo();
           setShowBigWin(true);
-          setTimeout(() => setShowBigWin(false), 2500);
+          setTimeout(() => setShowBigWin(false), 2800);
         } else {
           playMark();
         }
       } else {
-        playLose();
+        if (!isFreeRound) playLose();
       }
-      setIsSpinning(false);
+
+      // Continue free spins if any remain
+      if (isFreeRound) {
+        setFreeSpinsRemaining(prev => {
+          const next = prev - 1;
+          if (next <= 0) {
+            // Free spins done — pay out accumulated win
+            const accumulated = currentTotal;
+            if (accumulated > 0) addFunds(accumulated, 'Super Ace Free Spins Win');
+            setPhase('free_spin_end');
+          } else {
+            // Auto-trigger next free spin
+            setTimeout(() => runSpin(true), 900);
+            setPhase('free_spin');
+          }
+          return next;
+        });
+      } else {
+        setPhase('idle');
+      }
     }
+  };
+
+  const handleSpin = () => {
+    if (isSpinning || balance < bet) return;
+    runSpin(false);
+  };
+
+  const handleFreeSpinStart = () => {
+    const awarded = pendingFreeSpins;
+    setFreeSpinsTotal(awarded);
+    setFreeSpinsRemaining(awarded);
+    setFreeSpinsWin(0);
+    setPendingFreeSpins(0);
+    setPhase('free_spin');
+    runSpin(true);
   };
 
   if (!grid) return null;
 
   return (
-    /* Game page — fill remaining viewport area with neutral dark background */
-    <div
-      className="min-h-screen flex items-center justify-center bg-[#1a0a2e]"
-    >
-      {/* Portrait card — max width 420px, full height on mobile */}
+    <div className="min-h-screen flex items-center justify-center bg-[#1a0a2e]">
+      {/* Portrait card — max width 420px */}
       <div className="w-full max-w-[420px] mx-auto flex flex-col relative">
 
         {/* ── Header ── */}
@@ -123,9 +236,17 @@ export default function SuperAcePage() {
             <h1 className="font-outfit text-lg font-black text-amber-300 tracking-widest uppercase leading-none">
               SuperAce
             </h1>
+            {isFreeSpinMode && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-[10px] font-bold text-amber-400/70 uppercase tracking-widest"
+              >
+                Free Spin {freeSpinsTotal - freeSpinsRemaining + 1} / {freeSpinsTotal}
+              </motion.p>
+            )}
           </div>
 
-          {/* Coin icon placeholder */}
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-black text-amber-900"
             style={{ background: 'linear-gradient(135deg,#fde68a,#f59e0b)' }}
@@ -134,14 +255,55 @@ export default function SuperAcePage() {
           </div>
         </div>
 
+        {/* ── Free Spins HUD (shown during free spin bonus) ── */}
+        <AnimatePresence>
+          {isFreeSpinMode && (
+            <div className="px-2 pt-2" style={{ background: '#1a0510' }}>
+              <FreeSpinsHUD
+                spinsRemaining={freeSpinsRemaining}
+                totalFreeWin={freeSpinsWin}
+                currentMultiplier={config.freeSpinMultipliers[multiplierIndex] || config.freeSpinMultipliers[config.freeSpinMultipliers.length - 1]}
+              />
+            </div>
+          )}
+        </AnimatePresence>
+
         {/* ── Multiplier Bar ── */}
-        <div className="px-2 pt-2" style={{ background: '#1a0510' }}>
-          <MultiplierBar currentMultiplier={MULTIPLIER_STAGES[multiplierIndex]} />
-        </div>
+        {!isFreeSpinMode && (
+          <div className="px-2 pt-2" style={{ background: '#1a0510' }}>
+            <MultiplierBar currentMultiplier={config.normalMultipliers[multiplierIndex] || config.normalMultipliers[config.normalMultipliers.length - 1]} multipliers={config.normalMultipliers} />
+          </div>
+        )}
 
         {/* ── Slot Grid ── */}
         <div className="px-2 pb-2 relative" style={{ background: '#1a0510' }}>
-          <SlotGrid grid={grid} wins={currentWins} />
+          <SlotGrid
+            grid={grid}
+            wins={currentWins}
+            isShuffling={isShuffling}
+            onReelsStopped={handleReelsStopped}
+          />
+
+          {/* Scatter / Free Spins intro overlay */}
+          <AnimatePresence>
+            {phase === 'scatter_intro' && pendingFreeSpins > 0 && (
+              <FreeSpinsOverlay
+                spinsAwarded={pendingFreeSpins}
+                scatterCount={scatterCount}
+                onStart={handleFreeSpinStart}
+              />
+            )}
+          </AnimatePresence>
+
+          {/* Free Spins Complete modal */}
+          <AnimatePresence>
+            {phase === 'free_spin_end' && (
+              <FreeSpinsComplete
+                totalWin={freeSpinsWin}
+                onContinue={() => setPhase('idle')}
+              />
+            )}
+          </AnimatePresence>
 
           {/* Big Win overlay */}
           <AnimatePresence>
@@ -155,13 +317,20 @@ export default function SuperAcePage() {
                 <div
                   className="text-center px-8 py-6 rounded-2xl"
                   style={{
-                    background: 'rgba(0,0,0,0.82)',
-                    border: '2px solid #fbbf24',
-                    boxShadow: '0 0 40px rgba(251,191,36,0.5)',
+                    background: 'rgba(0,0,0,0.85)',
+                    border: '2.5px solid #fbbf24',
+                    boxShadow: '0 0 50px rgba(251,191,36,0.6)',
                   }}
                 >
-                  <p className="text-xs font-bold text-amber-400/70 uppercase tracking-widest mb-1">🎰 Big Win!</p>
-                  <p className="font-outfit text-4xl font-black text-amber-400">+{totalWin.toLocaleString()}</p>
+                  <p className="text-xs font-bold text-amber-400/70 uppercase tracking-widest mb-1">
+                    {isFreeSpinMode ? '🎰 Free Spin Win!' : '🎰 Big Win!'}
+                  </p>
+                  <p
+                    className="font-outfit text-4xl font-black"
+                    style={{ color: '#fbbf24', textShadow: '0 0 20px rgba(251,191,36,0.8)' }}
+                  >
+                    +{totalWin.toLocaleString()}
+                  </p>
                 </div>
               </motion.div>
             )}
@@ -176,6 +345,7 @@ export default function SuperAcePage() {
           isSpinning={isSpinning}
           totalWin={totalWin}
           balance={balance}
+          freeSpinsRemaining={freeSpinsRemaining}
         />
       </div>
     </div>

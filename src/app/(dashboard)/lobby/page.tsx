@@ -7,6 +7,7 @@ import { useRoomStore } from '@/lib/store/room';
 import type { RoomConfig } from '@/lib/store/room';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/lib/store/auth';
+import { useWalletStore } from '@/lib/store/wallet';
 import { hasLeftGame } from '@/lib/utils';
 import {
   Users, Clock, Plus, X, Zap, Gamepad2, Star,
@@ -220,6 +221,7 @@ function CreateRoomModal({ onClose, onCreate }: {
 export default function LobbyPage() {
   const router = useRouter();
   const { setPendingRoom, activeRooms, setActiveRooms } = useRoomStore();
+  const { balance } = useWalletStore();
   const [category, setCategory] = useState<GameCategory>('All');
   const [mounted, setMounted]   = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -272,11 +274,19 @@ export default function LobbyPage() {
   }, [setActiveRooms, user]);
 
   const handleJoinRoom = (room: RoomConfig) => {
+    if (balance < room.entry) {
+      alert(`Not enough points! You need ${room.entry.toLocaleString()} points to join this room.`);
+      return;
+    }
     setPendingRoom(room);
     router.push(`/game/${room.id}`);
   };
 
   const handleCreateRoom = (room: RoomConfig) => {
+    if (balance < room.entry) {
+      alert(`Not enough points! You need ${room.entry.toLocaleString()} points to create this room.`);
+      return;
+    }
     setShowCreate(false);
     setPendingRoom(room);
     router.push(`/game/${room.id}`);

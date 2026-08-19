@@ -23,20 +23,25 @@ export const SYMBOL_MULTIPLIERS: Record<SymbolType, number> = {
   'SCATTER': 0,
 };
 
-const getRandomSymbol = (): SymbolType => {
-  // Better balanced RTP distribution to reduce dry streaks
+const getRandomSymbol = (isFreeSpins = false): SymbolType => {
   const rand = Math.random();
-  
-  // 3% Scatter, 4% Wild naturally dropping
-  if (rand < 0.03) return 'SCATTER';
-  if (rand < 0.07) return 'WILD';
-  
+
+  // During free spins, boost WILD rate to 10% and SCATTER to 5%
+  if (isFreeSpins) {
+    if (rand < 0.05) return 'SCATTER';
+    if (rand < 0.15) return 'WILD';
+  } else {
+    // Normal: 3% Scatter, 4% Wild
+    if (rand < 0.03) return 'SCATTER';
+    if (rand < 0.07) return 'WILD';
+  }
+
   // 24% for high-paying suits (6% each)
   if (rand < 0.13) return 'SPADE';
   if (rand < 0.19) return 'HEART';
   if (rand < 0.25) return 'CLUB';
   if (rand < 0.31) return 'DIAMOND';
-  
+
   // 69% for common face cards (weighted towards J and Q for frequent small wins)
   const faceRand = Math.random();
   if (faceRand < 0.35) return 'J';      // Most common
@@ -45,15 +50,15 @@ const getRandomSymbol = (): SymbolType => {
   return 'A';                           // Rare face
 };
 
-export const generateGrid = (cols = 5, rows = 4): Grid => {
+export const generateGrid = (cols = 5, rows = 4, isFreeSpins = false): Grid => {
   const grid: Grid = [];
   for (let c = 0; c < cols; c++) {
     const col: GridCell[] = [];
     for (let r = 0; r < rows; r++) {
       col.push({
         id: `${c}-${r}-${Date.now()}-${Math.random()}`,
-        type: getRandomSymbol(),
-        isGolden: Math.random() < 0.15 && !['SCATTER', 'WILD'].includes(getRandomSymbol()), // 15% chance to be golden
+        type: getRandomSymbol(isFreeSpins),
+        isGolden: Math.random() < 0.15 && !['SCATTER', 'WILD'].includes(getRandomSymbol()),
       });
     }
     grid.push(col);
@@ -67,7 +72,32 @@ export interface WinResult {
   payout: number;
 }
 
-export const evaluateWins = (grid: Grid, betAmount: number): WinResult[] => {
+export interface EvaluateResult {
+  wins: WinResult[];
+  scatterCount: number;
+  freeSpinsAwarded: number; // 0 if no scatter trigger
+}
+
+/** Count scatter symbols anywhere on the full grid */
+export const countScatters = (grid: Grid): number => {
+  let count = 0;
+  for (const col of grid) {
+    for (const cell of col) {
+      if (cell.type === 'SCATTER') count++;
+    }
+  }
+  return count;
+};
+
+/** How many free spins are awarded for a given scatter count */
+export const freeSpinsForScatters = (scatterCount: number): number => {
+  if (scatterCount >= 5) return 20;
+  if (scatterCount === 4) return 15;
+  if (scatterCount === 3) return 10;
+  return 0;
+};
+
+export const evaluateWins = (grid: Grid, betAmount: number): EvaluateResult => {
   const wins: WinResult[] = [];
   const cols = grid.length;
   const rows = grid[0].length;
@@ -76,8 +106,7 @@ export const evaluateWins = (grid: Grid, betAmount: number): WinResult[] => {
 
   // For each symbol type in reel 0, check if we can make a chain of >= 3
   const reel0Symbols = new Set(grid[0].map(c => c.type).filter(s => s !== 'SCATTER' && s !== 'WILD'));
-  
-  // Also, a wild on reel 0 could start a chain of anything, but let's just evaluate all base symbols.
+
   const symbolsToEvaluate = Array.from(reel0Symbols);
   if (grid[0].some(c => c.type === 'WILD')) {
     // If reel 0 has a wild, it can match ANY symbol present in reel 1
@@ -90,7 +119,7 @@ export const evaluateWins = (grid: Grid, betAmount: number): WinResult[] => {
   for (const targetSymbol of symbolsToEvaluate) {
     let currentChainLength = 0;
     const matchingPositions: { col: number; row: number }[] = [];
-    
+
     // Check consecutive reels
     for (let c = 0; c < cols; c++) {
       const matchInCol = [];
@@ -100,7 +129,7 @@ export const evaluateWins = (grid: Grid, betAmount: number): WinResult[] => {
           matchInCol.push({ col: c, row: r });
         }
       }
-      
+
       if (matchInCol.length > 0) {
         currentChainLength++;
         matchingPositions.push(...matchInCol);
@@ -110,14 +139,12 @@ export const evaluateWins = (grid: Grid, betAmount: number): WinResult[] => {
     }
 
     if (currentChainLength >= 3) {
-      // Calculate payout: base symbol multiplier * chain length multiplier * ways * bet
-      // "Ways" = number of matching symbols in each column of the chain multiplied
       let ways = 1;
       for (let c = 0; c < currentChainLength; c++) {
         const countInCol = matchingPositions.filter(p => p.col === c).length;
         ways *= countInCol;
       }
-      
+
       const payout = betAmount * SYMBOL_MULTIPLIERS[targetSymbol] * (currentChainLength - 2) * ways;
       wins.push({
         symbol: targetSymbol,
@@ -127,11 +154,15 @@ export const evaluateWins = (grid: Grid, betAmount: number): WinResult[] => {
     }
   }
 
-  return wins;
+  // Scatter evaluation (any 3+ anywhere on grid)
+  const scatterCount = countScatters(grid);
+  const freeSpinsAwarded = freeSpinsForScatters(scatterCount);
+
+  return { wins, scatterCount, freeSpinsAwarded };
 };
 
 // Cascades the grid, returning a new grid with replaced symbols
-export const cascadeGrid = (grid: Grid, wins: WinResult[]): Grid => {
+export const cascadeGrid = (grid: Grid, wins: WinResult[], isFreeSpins = false): Grid => {
   const newGrid = JSON.parse(JSON.stringify(grid)) as Grid;
   const cols = newGrid.length;
   const rows = newGrid[0].length;
@@ -161,7 +192,7 @@ export const cascadeGrid = (grid: Grid, wins: WinResult[]): Grid => {
     while (survivingCol.length < rows) {
       survivingCol.unshift({
         id: `${c}-new-${Date.now()}-${Math.random()}`,
-        type: getRandomSymbol(),
+        type: getRandomSymbol(isFreeSpins),
         isGolden: Math.random() < 0.15,
       });
     }

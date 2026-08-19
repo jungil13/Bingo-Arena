@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/lib/store/auth';
 import { markGameAsLeft, hasLeftGame } from '@/lib/utils';
+import { useWalletStore } from '@/lib/store/wallet';
 
 // ─── Mobile tab types ────────────────────────────────────────────────────────
 type MobileTab = 'card' | 'numbers' | 'players' | 'chat';
@@ -502,6 +503,11 @@ export default function GameRoomPage() {
   const [playersOpen, setPlayersOpen] = useState(false);
   const prevNumber = useRef<number | null>(null);
 
+  // Wallet handling
+  const { deductFunds, addFunds } = useWalletStore();
+  const hasPaidEntry = useRef(false);
+  const hasClaimedPrize = useRef(false);
+
   // Lobby state
   const [lobbyPlayers, setLobbyPlayers] = useState<LobbyPlayer[]>([]);
   const [isReady, setIsReady] = useState(false);
@@ -713,13 +719,31 @@ export default function GameRoomPage() {
     return () => clearInterval(interval);
   }, [isDrawing]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Winner effects
+  // Winner and Wallet effects
   useEffect(() => {
-    if (status === 'COMPLETED') {
-      if (winner === 'You') audio.playBingo();
-      else audio.playLose();
+    if (status === 'STARTING' && !hasPaidEntry.current) {
+      hasPaidEntry.current = true;
+      const entryFee = pendingRoom?.entry || 0;
+      if (entryFee > 0) {
+        deductFunds(entryFee, 'Bingo Entry Fee');
+      }
     }
-  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    if (status === 'COMPLETED') {
+      if (winner === 'You') {
+        audio.playBingo();
+        if (!hasClaimedPrize.current) {
+          hasClaimedPrize.current = true;
+          const prizeAmount = pendingRoom?.prize || 0;
+          if (prizeAmount > 0) {
+            addFunds(prizeAmount, 'Bingo Prize Win');
+          }
+        }
+      } else {
+        audio.playLose();
+      }
+    }
+  }, [status, winner, pendingRoom, deductFunds, addFunds, audio]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Chat toast: show popup when chat panel is closed and new message arrives
   useEffect(() => {

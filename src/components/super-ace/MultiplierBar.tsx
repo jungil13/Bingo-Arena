@@ -4,11 +4,10 @@ import { motion } from 'framer-motion';
 
 interface MultiplierBarProps {
   currentMultiplier: number;
+  multipliers: number[];
 }
 
-const MULTIPLIERS = [1, 2, 3, 5];
-
-export function MultiplierBar({ currentMultiplier }: MultiplierBarProps) {
+export function MultiplierBar({ currentMultiplier, multipliers }: MultiplierBarProps) {
   return (
     <div
       className="flex items-center justify-between rounded-xl px-2 py-1 mb-2"
@@ -22,7 +21,7 @@ export function MultiplierBar({ currentMultiplier }: MultiplierBarProps) {
 
       {/* Multiplier pills */}
       <div className="flex gap-1 flex-1 justify-around">
-        {MULTIPLIERS.map((m) => {
+        {multipliers.map((m) => {
           const isActive = m <= currentMultiplier && currentMultiplier > 1;
           const isCurrent = m === currentMultiplier;
           return (

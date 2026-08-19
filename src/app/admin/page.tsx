@@ -100,7 +100,69 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
+
+            {/* Slot Config */}
+            <SlotConfigControl />
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+import { useSlotStore } from '@/lib/store/slotStore';
+
+function SlotConfigControl() {
+  const { config, updateConfig } = useSlotStore();
+  
+  return (
+    <div className="space-y-6 mt-8">
+      <h2 className="font-outfit text-2xl font-bold">Slot Config</h2>
+      
+      <div className="glass-card rounded-2xl p-6 border border-white/5 relative overflow-hidden space-y-6">
+        <div>
+          <p className="text-sm text-muted-foreground mb-2">Normal Multipliers (comma separated)</p>
+          <input 
+            type="text" 
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+            value={config.normalMultipliers.join(', ')}
+            onChange={(e) => {
+              const vals = e.target.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+              if (vals.length > 0) updateConfig({ normalMultipliers: vals });
+            }}
+          />
+        </div>
+        <div>
+          <p className="text-sm text-muted-foreground mb-2">Free Spin Multipliers (comma separated)</p>
+          <input 
+            type="text" 
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+            value={config.freeSpinMultipliers.join(', ')}
+            onChange={(e) => {
+              const vals = e.target.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+              if (vals.length > 0) updateConfig({ freeSpinMultipliers: vals });
+            }}
+          />
+        </div>
+        <div>
+          <p className="text-sm text-muted-foreground mb-2">Scatter Config (Scatters:Spins, ...)</p>
+          <input 
+            type="text" 
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+            value={config.scatterRequirements.map(r => `${r.scatters}:${r.spinsAwarded}`).join(', ')}
+            onChange={(e) => {
+              const pairs = e.target.value.split(',').map(s => {
+                const parts = s.split(':');
+                if (parts.length === 2) {
+                  const scatters = parseInt(parts[0].trim());
+                  const spinsAwarded = parseInt(parts[1].trim());
+                  if (!isNaN(scatters) && !isNaN(spinsAwarded)) return { scatters, spinsAwarded };
+                }
+                return null;
+              }).filter(Boolean) as { scatters: number, spinsAwarded: number }[];
+              if (pairs.length > 0) updateConfig({ scatterRequirements: pairs });
+            }}
+          />
         </div>
       </div>
     </div>
