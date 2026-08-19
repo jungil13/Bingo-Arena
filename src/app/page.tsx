@@ -6,7 +6,22 @@ import { Play, Shield, Coins, Sparkles, ArrowRight } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+import { useAuthStore } from "@/lib/store/auth";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
 export default function LandingPage() {
+  const router = useRouter();
+  const { isAuthenticated, syncFromSupabase } = useAuthStore();
+
+  useEffect(() => {
+    syncFromSupabase().then(() => {
+      if (useAuthStore.getState().isAuthenticated) {
+        router.push('/lobby');
+      }
+    });
+  }, [router, syncFromSupabase]);
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header */}

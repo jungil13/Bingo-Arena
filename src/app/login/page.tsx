@@ -48,7 +48,14 @@ function LoginContent() {
     // Show error if redirected back from failed OAuth
     const err = searchParams.get("error");
     if (err) setError("Google sign-in failed. Please try again.");
-  }, [searchParams]);
+
+    // Check if already logged in
+    syncFromSupabase().then(() => {
+      if (useAuthStore.getState().isAuthenticated) {
+        router.push("/lobby");
+      }
+    });
+  }, [searchParams, router, syncFromSupabase]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

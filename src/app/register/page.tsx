@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -31,6 +31,15 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState('');
   const router = useRouter();
   const { syncFromSupabase } = useAuthStore();
+
+  useEffect(() => {
+    // Check if already logged in
+    syncFromSupabase().then(() => {
+      if (useAuthStore.getState().isAuthenticated) {
+        router.push("/lobby");
+      }
+    });
+  }, [router, syncFromSupabase]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
