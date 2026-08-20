@@ -80,7 +80,12 @@ export default function SuperAcePage() {
 
   useEffect(() => {
     setGrid(generateGrid());
-    startMusic();
+    
+    // Play the background music from public folder
+    const bgAudio = new Audio('/bgmusic.mp3');
+    bgAudio.loop = true;
+    bgAudio.volume = 0.3;
+    bgAudio.play().catch(err => console.warn("Audio autoplay blocked:", err));
 
     const supabase = createClient();
     const channel = supabase.channel('global-lobby', { config: { presence: { key: 'lobby' } } });
@@ -104,10 +109,11 @@ export default function SuperAcePage() {
     });
 
     return () => {
-      stopMusic();
+      bgAudio.pause();
+      bgAudio.currentTime = 0;
       supabase.removeChannel(channel);
     };
-  }, [startMusic, stopMusic, user]);
+  }, [user]);
 
   /* ── Core spin logic ── */
   const runSpin = useCallback(async (isFreeSpinRound = false) => {
@@ -134,18 +140,18 @@ export default function SuperAcePage() {
     const shuffleInterval = setInterval(() => playShuffleBeep(), 80);
 
     // ── Spin outcome probabilities ────────────────────────────────────
-    // 40% dud  (no win, no scatter)
-    // 20% scatter trigger (guaranteed 3 scatters → free spins)
-    // 40% normal spin (wilds boosted to ~15% per cell to help complete BINGO lines)
+    // 80% dud  (no win, no scatter) - Makes the game more challenging
+    // 2% scatter trigger (guaranteed 3 scatters → free spins)
+    // 18% normal spin (wilds boosted to ~15% per cell to help complete BINGO lines)
     let finalGrid;
     if (!isFreeSpinRound) {
       const roll = Math.random();
-      if (roll < 0.40) {
-        finalGrid = generateDudGrid(5, 4);              // 40% → dud
-      } else if (roll < 0.60) {
-        finalGrid = generateScatterGrid(5, 4);          // 20% → scatter trigger
+      if (roll < 0.80) {
+        finalGrid = generateDudGrid(5, 4);              // 80% → dud
+      } else if (roll < 0.82) {
+        finalGrid = generateScatterGrid(5, 4);          // 2% → scatter trigger
       } else {
-        finalGrid = generateGrid(5, 4, false, true);    // 40% → normal spin WITH wild boost
+        finalGrid = generateGrid(5, 4, false, true);    // 18% → normal spin WITH wild boost
       }
     } else {
       finalGrid = generateGrid(5, 4, true, false);      // free spin round — normal grid, no wild boost
@@ -190,8 +196,8 @@ export default function SuperAcePage() {
 
     if (wins.length > 0) {
       playMark();
-      const roundWin = Math.floor(wins.reduce((sum, w) => sum + w.payout, 0) * activeMultiplier);
-      const newTotal = currentTotal + roundWin;
+      const roundWin = Number((wins.reduce((sum, w) => sum + w.payout, 0) * activeMultiplier).toFixed(2));
+      const newTotal = Number((currentTotal + roundWin).toFixed(2));
 
       setCurrentWins(wins);
       setTotalWin(newTotal);
@@ -458,14 +464,14 @@ export default function SuperAcePage() {
               </div>
               {/* Symbol rows */}
               {([
-                { icon: 'J',  name: 'Jack',    color: '#3a86ff', base: 1  },
-                { icon: 'Q',  name: 'Queen',   color: '#e63946', base: 2  },
-                { icon: 'K',  name: 'King',    color: '#7c3aed', base: 3  },
-                { icon: 'A',  name: 'Ace',     color: '#b45309', base: 5  },
-                { icon: '♣',  name: 'Club',    color: '#22c55e', base: 8  },
-                { icon: '♦',  name: 'Diamond', color: '#ec4899', base: 10 },
-                { icon: '♥',  name: 'Heart',   color: '#ef4444', base: 15 },
-                { icon: '♠',  name: 'Spade',   color: '#6366f1', base: 25 },
+                { icon: 'J',  name: 'Jack',    color: '#3a86ff', base: 0.002  },
+                { icon: 'Q',  name: 'Queen',   color: '#e63946', base: 0.005  },
+                { icon: 'K',  name: 'King',    color: '#7c3aed', base: 0.01  },
+                { icon: 'A',  name: 'Ace',     color: '#b45309', base: 0.02  },
+                { icon: '♣',  name: 'Club',    color: '#22c55e', base: 0.05  },
+                { icon: '♦',  name: 'Diamond', color: '#ec4899', base: 0.10 },
+                { icon: '♥',  name: 'Heart',   color: '#ef4444', base: 0.20 },
+                { icon: '♠',  name: 'Spade',   color: '#6366f1', base: 0.50 },
               ] as const).map(({ icon, name, color, base }, i) => (
                 <div
                   key={icon}
@@ -475,9 +481,9 @@ export default function SuperAcePage() {
                 >
                   <span className="text-sm font-black text-center leading-none" style={{ color }}>{icon}</span>
                   <span className="text-[9px] text-white/50 font-medium truncate">{name}</span>
-                  <span className="text-[10px] font-bold text-center" style={{ color }}>×{base * 2}</span>
-                  <span className="text-[10px] font-bold text-center" style={{ color }}>×{base * 3}</span>
-                  <span className="text-[10px] font-bold text-center" style={{ color }}>×{base * 5}</span>
+                  <span className="text-[10px] font-bold text-center" style={{ color }}>×{(base * 2).toFixed(3)}</span>
+                  <span className="text-[10px] font-bold text-center" style={{ color }}>×{(base * 3).toFixed(3)}</span>
+                  <span className="text-[10px] font-bold text-center" style={{ color }}>×{(base * 5).toFixed(3)}</span>
                 </div>
               ))}
             </div>

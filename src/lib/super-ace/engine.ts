@@ -192,14 +192,14 @@ export const evaluateWins = (grid: Grid, betAmount: number): EvaluateResult => {
 
   // Symbol base values (fixed points per bet unit)
   const SYMBOL_BASE: Record<SymbolType, number> = {
-    'J':       1,
-    'Q':       2,
-    'K':       3,
-    'A':       5,
-    'CLUB':    8,
-    'DIAMOND': 10,
-    'HEART':   15,
-    'SPADE':   25,
+    'J':       0.002,
+    'Q':       0.005,
+    'K':       0.01,
+    'A':       0.02,
+    'CLUB':    0.05,
+    'DIAMOND': 0.1,
+    'HEART':   0.2,
+    'SPADE':   0.5,
     'WILD':    0,
     'SCATTER': 0,
   };
@@ -219,7 +219,7 @@ export const evaluateWins = (grid: Grid, betAmount: number): EvaluateResult => {
     const dominant = realTypes[0];
     if (!realTypes.every(t => t === dominant)) return null; // mixed symbols = no win
 
-    const payout = Math.floor(betAmount * SYMBOL_BASE[dominant] * LINE_MULTIPLIERS[lineType]);
+    const payout = Number((betAmount * SYMBOL_BASE[dominant] * LINE_MULTIPLIERS[lineType]).toFixed(2));
     return { symbol: dominant, positions, payout, lineType };
   };
 

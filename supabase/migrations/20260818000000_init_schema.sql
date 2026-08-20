@@ -134,4 +134,28 @@ CREATE POLICY "Users can view own cards." ON bingo_cards FOR SELECT USING (auth.
 CREATE POLICY "Draws are viewable by everyone." ON bingo_draws FOR SELECT USING (true);
 CREATE POLICY "Winners are viewable by everyone." ON bingo_winners FOR SELECT USING (true);
 
+-- Function to handle new user signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, username, email)
+  VALUES (
+    new.id,
+    COALESCE(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
+    new.email
+  );
+  
+  INSERT INTO public.wallets (profile_id, balance)
+  VALUES (new.id, 10000);
+  
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger for new user signup
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
 -- End of schema
