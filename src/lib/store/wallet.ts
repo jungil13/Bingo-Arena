@@ -21,9 +21,9 @@ interface WalletState {
 export const useWalletStore = create<WalletState>()(
   persist(
     (set, get) => ({
-      balance: 10400, // Initial balance
+      balance: 1000, // Initial balance
       transactions: [
-        { id: 'tx-initial', type: 'credit' as const, amount: 10400, reason: 'Welcome Bonus', date: new Date().toISOString() }
+        { id: 'tx-initial', type: 'credit' as const, amount: 1000, reason: 'Welcome Bonus', date: new Date().toISOString() }
       ],
       lastRedeemed: null,
 
@@ -91,7 +91,7 @@ export const useWalletStore = create<WalletState>()(
       }
     }),
     {
-      name: 'bingo-wallet-storage',
+      name: 'bingo-wallet-storage-v2', // v2: reset to 1000 starting balance
     }
   )
 );

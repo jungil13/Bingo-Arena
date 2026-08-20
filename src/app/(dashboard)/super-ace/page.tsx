@@ -12,6 +12,7 @@ import {
   WinResult,
   freeSpinsForScatters,
   countScatters,
+  resetCascadeCount,
 } from '@/lib/super-ace/engine';
 import { SlotGrid } from '@/components/super-ace/SlotGrid';
 import { Controls } from '@/components/super-ace/Controls';
@@ -135,6 +136,7 @@ export default function SuperAcePage() {
 
     // Start reel animations
     setIsShuffling(true);
+    resetCascadeCount();
 
     // Play shuffle sounds during spin
     const shuffleInterval = setInterval(() => playShuffleBeep(), 80);
@@ -376,29 +378,73 @@ export default function SuperAcePage() {
             <AnimatePresence>
               {showBigWin && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.5 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 1.3 }}
-                  className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none rounded-2xl overflow-hidden"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-2xl overflow-hidden"
+                  style={{ background: 'radial-gradient(ellipse at center, rgba(255,180,0,0.45) 0%, rgba(0,0,0,0.75) 70%)' }}
                 >
-                  <div
-                    className="text-center px-8 py-6 rounded-2xl"
-                    style={{
-                      background: 'rgba(0,0,0,0.85)',
-                      border: '2.5px solid #fbbf24',
-                      boxShadow: '0 0 50px rgba(251,191,36,0.6)',
-                    }}
+                  {/* Radiant burst */}
+                  <motion.div
+                    className="absolute w-[500px] h-[500px] rounded-full"
+                    style={{ background: 'radial-gradient(circle, rgba(255,200,0,0.35) 0%, transparent 70%)' }}
+                    animate={{ scale: [1, 1.3, 1], opacity: [0.6, 1, 0.6] }}
+                    transition={{ repeat: Infinity, duration: 1.5 }}
+                  />
+
+                  {/* MEGA text */}
+                  <motion.div
+                    initial={{ scale: 0.3, y: -40 }}
+                    animate={{ scale: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 200, damping: 14 }}
+                    className="text-center relative z-10"
                   >
-                    <p className="text-xs font-bold text-amber-400/70 uppercase tracking-widest mb-1">
-                      {isFreeSpinMode ? '🎰 Free Spin Win!' : '🎰 Big Win!'}
+                    <p
+                      className="font-black leading-none tracking-widest uppercase"
+                      style={{
+                        fontSize: 'clamp(48px, 12vw, 72px)',
+                        background: 'linear-gradient(180deg, #60d3ff 0%, #1e6fff 50%, #002fa7 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        filter: 'drop-shadow(0 0 20px rgba(96,211,255,0.8))',
+                        textShadow: 'none',
+                        WebkitTextStroke: '2.5px #ffd700',
+                        paintOrder: 'stroke fill',
+                      }}
+                    >
+                      {isFreeSpinMode ? 'FREE' : 'MEGA'}
                     </p>
                     <p
-                      className="font-outfit text-4xl font-black"
-                      style={{ color: '#fbbf24', textShadow: '0 0 20px rgba(251,191,36,0.8)' }}
+                      className="font-black leading-none tracking-widest uppercase -mt-1"
+                      style={{
+                        fontSize: 'clamp(48px, 12vw, 72px)',
+                        background: 'linear-gradient(180deg, #60d3ff 0%, #1e6fff 50%, #002fa7 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        filter: 'drop-shadow(0 0 20px rgba(96,211,255,0.8))',
+                        WebkitTextStroke: '2.5px #ffd700',
+                        paintOrder: 'stroke fill',
+                      }}
                     >
-                      +{totalWin.toLocaleString()}
+                      WIN
                     </p>
-                  </div>
+                  </motion.div>
+
+                  {/* Win amount */}
+                  <motion.p
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.3, type: 'spring', stiffness: 200 }}
+                    className="font-black relative z-10 mt-3"
+                    style={{
+                      fontSize: 'clamp(32px, 8vw, 60px)',
+                      color: '#ffd700',
+                      textShadow: '0 0 30px rgba(255,200,0,1), 0 4px 0 rgba(180,100,0,0.8)',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    {totalWin.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </motion.p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -426,23 +472,16 @@ export default function SuperAcePage() {
             </div>
             <div className="px-4 py-3 space-y-2">
               <p className="text-[10px] text-white/40 leading-relaxed">
-                Fill an entire <span className="text-white/70 font-medium">row</span>, <span className="text-white/70 font-medium">column</span>, or <span className="text-white/70 font-medium">diagonal</span> with the same symbol.
+                Match symbols left to right on any of the <span className="text-white/70 font-medium">20 paylines</span>.
               </p>
               <div className="space-y-1.5">
-                {([
-                  { icon: '➡️', label: 'Row', desc: '5 symbols across', mult: '×2', bg: 'bg-emerald-500/10', text: 'text-emerald-400' },
-                  { icon: '⬇️', label: 'Column', desc: '4 symbols down', mult: '×3', bg: 'bg-blue-500/10', text: 'text-blue-400' },
-                  { icon: '↘️', label: 'Diagonal', desc: '4 symbols diagonal', mult: '×5', bg: 'bg-amber-500/10', text: 'text-amber-400' },
-                ] as const).map(({ icon, label, desc, mult, bg, text }) => (
-                  <div key={label} className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 bg-white/[0.03] border border-white/[0.04]">
-                    <span className="text-xs">{icon}</span>
+                  <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 bg-white/[0.03] border border-white/[0.04]">
+                    <span className="text-xs">📈</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-semibold text-white/80">{label}</p>
-                      <p className="text-[9px] text-white/30">{desc}</p>
+                      <p className="text-[10px] font-semibold text-white/80">20 Lines</p>
+                      <p className="text-[9px] text-white/30">Horizontal, V-shape, and Zig-zag lines</p>
                     </div>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${bg} ${text}`}>{mult}</span>
                   </div>
-                ))}
               </div>
             </div>
           </div>
@@ -455,35 +494,31 @@ export default function SuperAcePage() {
             </div>
             <div className="px-2 py-2">
               {/* Table header */}
-              <div className="grid grid-cols-[28px_1fr_40px_40px_40px] gap-1 px-2 pb-1.5 mb-1 border-b border-white/[0.04]">
+              <div className="grid grid-cols-[28px_1fr_60px] gap-1 px-2 pb-1.5 mb-1 border-b border-white/[0.04]">
                 <span className="text-[8px] text-white/25 font-medium" />
                 <span className="text-[8px] text-white/25 font-medium" />
-                <span className="text-[8px] text-white/25 font-medium text-center">Row</span>
-                <span className="text-[8px] text-white/25 font-medium text-center">Col</span>
-                <span className="text-[8px] text-white/25 font-medium text-center">Diag</span>
+                <span className="text-[8px] text-white/25 font-medium text-right">Payout</span>
               </div>
               {/* Symbol rows */}
               {([
-                { icon: 'J',  name: 'Jack',    color: '#3a86ff', base: 0.002  },
-                { icon: 'Q',  name: 'Queen',   color: '#e63946', base: 0.005  },
-                { icon: 'K',  name: 'King',    color: '#7c3aed', base: 0.01  },
-                { icon: 'A',  name: 'Ace',     color: '#b45309', base: 0.02  },
-                { icon: '♣',  name: 'Club',    color: '#22c55e', base: 0.05  },
-                { icon: '♦',  name: 'Diamond', color: '#ec4899', base: 0.10 },
-                { icon: '♥',  name: 'Heart',   color: '#ef4444', base: 0.20 },
-                { icon: '♠',  name: 'Spade',   color: '#6366f1', base: 0.50 },
+                { icon: 'J',  name: 'Jack',    color: '#3a86ff', base: 0.1  },
+                { icon: 'Q',  name: 'Queen',   color: '#e63946', base: 0.2  },
+                { icon: 'K',  name: 'King',    color: '#7c3aed', base: 0.4  },
+                { icon: 'A',  name: 'Ace',     color: '#b45309', base: 0.8  },
+                { icon: '♣',  name: 'Club',    color: '#22c55e', base: 1.5  },
+                { icon: '♦',  name: 'Diamond', color: '#ec4899', base: 2.5 },
+                { icon: '♥',  name: 'Heart',   color: '#ef4444', base: 4.0 },
+                { icon: '♠',  name: 'Spade',   color: '#6366f1', base: 10.0 },
               ] as const).map(({ icon, name, color, base }, i) => (
                 <div
                   key={icon}
-                  className={`grid grid-cols-[28px_1fr_40px_40px_40px] gap-1 items-center px-2 py-1 rounded-md ${
+                  className={`grid grid-cols-[28px_1fr_60px] gap-1 items-center px-2 py-1 rounded-md ${
                     i % 2 === 0 ? 'bg-white/[0.02]' : ''
                   }`}
                 >
                   <span className="text-sm font-black text-center leading-none" style={{ color }}>{icon}</span>
                   <span className="text-[9px] text-white/50 font-medium truncate">{name}</span>
-                  <span className="text-[10px] font-bold text-center" style={{ color }}>×{(base * 2).toFixed(3)}</span>
-                  <span className="text-[10px] font-bold text-center" style={{ color }}>×{(base * 3).toFixed(3)}</span>
-                  <span className="text-[10px] font-bold text-center" style={{ color }}>×{(base * 5).toFixed(3)}</span>
+                  <span className="text-[10px] font-bold text-right" style={{ color }}>×{(base).toFixed(1)}</span>
                 </div>
               ))}
             </div>

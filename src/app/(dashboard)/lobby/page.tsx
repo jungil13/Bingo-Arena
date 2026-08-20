@@ -53,6 +53,12 @@ const GAME_CATALOGUE: GameCard[] = [
     description: 'Cascading reels · Multipliers · Scatters',
     gradient: 'from-violet-600 to-purple-800', emoji: '🃏',
   },
+  {
+    id: 'fortune-gems', title: 'Fortune Gems', category: 'Slots',
+    tag: 'NEW', tagColor: 'bg-green-500', href: '/fortune-gems',
+    description: 'Win Multipliers · Lucky Spin · Jackpots',
+    gradient: 'from-amber-500 to-amber-800', emoji: '💎',
+  },
 ];
 
 const CATEGORIES: GameCategory[] = ['All', 'Bingo', 'Slots'];

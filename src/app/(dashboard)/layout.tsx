@@ -34,7 +34,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!mounted || !isAuthenticated) return null;
 
-  const isGame = pathname === '/super-ace';
+  const isGame = pathname === '/super-ace' || pathname === '/fortune-gems';
   const isChat = pathname === '/chat';
 
   return (

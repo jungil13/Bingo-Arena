@@ -182,74 +182,58 @@ export const evaluateWins = (grid: Grid, betAmount: number): EvaluateResult => {
 
   const getType = (c: number, r: number) => grid[c]?.[r]?.type;
 
-  // ── BINGO-style line definitions ──────────────────────────────────
-  // A win = same symbol (or WILD as joker) fills an ENTIRE line.
-  const LINE_MULTIPLIERS: Record<'row' | 'col' | 'diag', number> = {
-    row:  2.0,   // horizontal  — easiest, lower payout
-    col:  3.0,   // vertical    — harder,  medium payout
-    diag: 5.0,   // diagonal    — hardest, highest payout
-  };
+  // ── 20 Paylines for 5x4 Grid ──────────────────────────────────────
+  // Each payline is defined by the row index for each of the 5 columns
+  const PAYLINES = [
+    [0, 0, 0, 0, 0], [1, 1, 1, 1, 1], [2, 2, 2, 2, 2], [3, 3, 3, 3, 3], // Horizontals
+    [0, 1, 2, 3, 2], [3, 2, 1, 0, 1], // V-shapes
+    [0, 0, 1, 2, 3], [3, 3, 2, 1, 0], 
+    [1, 0, 1, 2, 3], [2, 3, 2, 1, 0],
+    [0, 1, 0, 1, 0], [3, 2, 3, 2, 3], // Zig-zags
+    [1, 2, 1, 2, 1], [2, 1, 2, 1, 2],
+    [0, 1, 2, 1, 0], [3, 2, 1, 2, 3],
+    [1, 0, 0, 0, 1], [2, 3, 3, 3, 2],
+    [0, 2, 0, 2, 0], [3, 1, 3, 1, 3]
+  ];
 
-  // Symbol base values (fixed points per bet unit)
+  // Symbol base values (adjusted for paylines instead of full bingo lines)
   const SYMBOL_BASE: Record<SymbolType, number> = {
-    'J':       0.002,
-    'Q':       0.005,
-    'K':       0.01,
-    'A':       0.02,
-    'CLUB':    0.05,
-    'DIAMOND': 0.1,
-    'HEART':   0.2,
-    'SPADE':   0.5,
+    'J':       0.1,
+    'Q':       0.2,
+    'K':       0.4,
+    'A':       0.8,
+    'CLUB':    1.5,
+    'DIAMOND': 2.5,
+    'HEART':   4.0,
+    'SPADE':   10.0,
     'WILD':    0,
     'SCATTER': 0,
   };
 
-  // Helper: check if all positions on a line share the same symbol (wilds fill in)
-  const checkLine = (
-    positions: { col: number; row: number }[],
-    lineType: 'row' | 'col' | 'diag',
-  ): WinResult | null => {
-    const types = positions.map(p => getType(p.col, p.row));
-    if (types.some(t => t === undefined || t === 'SCATTER')) return null;
+  PAYLINES.forEach((lineRows, index) => {
+    const types = lineRows.map((r, c) => getType(c, r));
+    
+    // Scatters don't pay on lines
+    if (types.some(t => t === 'SCATTER')) return;
 
-    // Find the real (non-wild) symbol on this line
-    const realTypes = types.filter(t => t !== 'WILD') as SymbolType[];
-    if (realTypes.length === 0) return null; // all wilds — skip
-
-    const dominant = realTypes[0];
-    if (!realTypes.every(t => t === dominant)) return null; // mixed symbols = no win
-
-    const payout = Number((betAmount * SYMBOL_BASE[dominant] * LINE_MULTIPLIERS[lineType]).toFixed(2));
-    return { symbol: dominant, positions, payout, lineType };
-  };
-
-  // ── Horizontal rows (4 rows × all 5 cols) ────────────────────────
-  for (let r = 0; r < rows; r++) {
-    const positions = Array.from({ length: cols }, (_, c) => ({ col: c, row: r }));
-    const result = checkLine(positions, 'row');
-    if (result) wins.push(result);
-  }
-
-  // ── Vertical columns (5 cols × all 4 rows) ───────────────────────
-  for (let c = 0; c < cols; c++) {
-    const positions = Array.from({ length: rows }, (_, r) => ({ col: c, row: r }));
-    const result = checkLine(positions, 'col');
-    if (result) wins.push(result);
-  }
-
-  // ── Diagonals (4-cell diagonals on 5×4 grid) ─────────────────────
-  // Top-left → bottom-right
-  for (let startC = 0; startC <= cols - rows; startC++) {
-    const positions = Array.from({ length: rows }, (_, i) => ({ col: startC + i, row: i }));
-    const result = checkLine(positions, 'diag');
-    if (result) wins.push(result);
-  }
-  // Top-right → bottom-left
-  for (let startC = rows - 1; startC < cols; startC++) {
-    const positions = Array.from({ length: rows }, (_, i) => ({ col: startC - i, row: i }));
-    const result = checkLine(positions, 'diag');
-    if (result) wins.push(result);
-  }
+    // Filter out wilds to find the base symbol
+    const realTypes = types.filter(t => t !== 'WILD');
+    
+    // If all wilds, pay as highest symbol (SPADE)
+    const dominant = realTypes.length === 0 ? 'SPADE' : realTypes[0];
+    
+    // Check if all non-wild symbols match
+    const isWin = realTypes.every(t => t === dominant);
+    
+    if (isWin) {
+      const payout = Number((betAmount * (SYMBOL_BASE[dominant] || 0)).toFixed(2));
+      wins.push({
+        symbol: dominant,
+        positions: lineRows.map((r, c) => ({ col: c, row: r })),
+        payout,
+      });
+    }
+  });
 
   // ── Scatter evaluation (any 3+ anywhere on grid) ──────────────────
   const scatterCount = countScatters(grid);
@@ -258,11 +242,15 @@ export const evaluateWins = (grid: Grid, betAmount: number): EvaluateResult => {
   return { wins, scatterCount, freeSpinsAwarded };
 };
 
-// Cascades the grid, returning a new grid with replaced symbols
+// Track cascade drops to apply the scatter -> wild logic
+let cascadeCount = 0;
+
 export const cascadeGrid = (grid: Grid, wins: WinResult[], isFreeSpins = false): Grid => {
   const newGrid = JSON.parse(JSON.stringify(grid)) as Grid;
   const cols = newGrid.length;
   const rows = newGrid[0].length;
+
+  cascadeCount++;
 
   const positionsToRemove = new Set<string>();
   wins.forEach(win => {
@@ -285,11 +273,22 @@ export const cascadeGrid = (grid: Grid, wins: WinResult[], isFreeSpins = false):
       }
     }
 
-    // Fill the rest with new random symbols at the top
+    // Fill the rest with new symbols
     while (survivingCol.length < rows) {
+      let type = getRandomSymbol(isFreeSpins);
+      
+      // "drop like 1 or 2 scatter coins then wild cards" mechanic
+      // Increase scatter drop rate heavily on the first cascade, and wild on the second
+      const dropRand = Math.random();
+      if (cascadeCount === 1 && dropRand < 0.3) {
+        type = 'SCATTER'; // 30% chance to drop scatter on first cascade
+      } else if (cascadeCount >= 2 && dropRand < 0.4) {
+        type = 'WILD'; // 40% chance to drop wilds on subsequent cascades
+      }
+
       survivingCol.unshift({
         id: `${c}-new-${Date.now()}-${Math.random()}`,
-        type: getRandomSymbol(isFreeSpins),
+        type,
         isGolden: Math.random() < 0.03,
       });
     }
@@ -299,3 +298,7 @@ export const cascadeGrid = (grid: Grid, wins: WinResult[], isFreeSpins = false):
 
   return newGrid;
 };
+
+// Reset cascade counter on spin
+export const resetCascadeCount = () => { cascadeCount = 0; };
+
